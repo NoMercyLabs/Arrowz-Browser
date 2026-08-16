@@ -5,12 +5,14 @@ composeBom = "2025.10.01"
 coreKtx = "1.15.0"
 activityCompose = "1.9.3"
 lifecycle = "2.8.7"
+webkit = "1.12.1"
 junit = "4.13.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 compose-foundation = { group = "androidx.compose.foundation", name = "foundation" }
 compose-ui = { group = "androidx.compose.ui", name = "ui" }

@@ -32,7 +32,12 @@ param(
 
     # Capture the screen after launch. With several devices the serial is
     # appended to the filename.
-    [string] $Screenshot
+    [string] $Screenshot,
+
+    # Wait this long after the first frame before capturing. The first frame is
+    # the app, not the page: web content paints afterwards, so a browser
+    # screenshot taken at first frame is blank.
+    [int] $Settle = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -134,6 +139,7 @@ function Wait-ForDisplayed {
 if ($Screenshot -and -not $NoLaunch) {
     foreach ($serial in $Device) {
         [void] (Wait-ForDisplayed -Serial $serial -Package $package)
+        if ($Settle -gt 0) { Start-Sleep -Seconds $Settle }
         $out = $Screenshot
         if ($Device.Count -gt 1) {
             $safe = $serial -replace '[:.]', '_'

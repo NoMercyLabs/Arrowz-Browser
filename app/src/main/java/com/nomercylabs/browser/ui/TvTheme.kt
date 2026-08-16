@@ -41,13 +41,21 @@ fun TvTheme(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(palette.surface)
-                .padding(
-                    horizontal = Tokens.OverscanHorizontal,
-                    vertical = Tokens.OverscanVertical,
-                ),
+                .background(palette.surface),
         ) {
             content()
         }
     }
 }
+
+/**
+ * Insets a surface into the area a television will not crop.
+ *
+ * Applied per surface rather than by the theme, because page content is
+ * full-bleed and only the app's own chrome is inset. Insetting everything would
+ * letterbox every website inside a border.
+ */
+fun Modifier.overscan(): Modifier = padding(
+    horizontal = Tokens.OverscanHorizontal,
+    vertical = Tokens.OverscanVertical,
+)

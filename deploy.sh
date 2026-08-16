@@ -14,6 +14,7 @@ CLEAN=0
 LAUNCH=1
 LOGS=0
 SCREENSHOT=""
+SETTLE=0
 declare -a DEVICES=()
 declare -a CONNECT=()
 
@@ -32,6 +33,10 @@ Usage: ./deploy.sh [options]
       --logs                 Follow the app's logcat after launch.
       --screenshot <path>    Capture the screen after launch. With several
                              devices the serial is appended to the filename.
+      --settle <seconds>     Wait this long after the first frame before
+                             capturing. The first frame is the app, not the
+                             page: web content paints afterwards, so a browser
+                             screenshot taken at first frame is blank.
   -h, --help                 This.
 
 Environment:
@@ -53,6 +58,7 @@ while [[ $# -gt 0 ]]; do
         --no-launch)     LAUNCH=0; shift ;;
         --logs)          LOGS=1; shift ;;
         --screenshot)    SCREENSHOT="$2"; shift 2 ;;
+        --settle)        SETTLE="$2"; shift 2 ;;
         -h|--help)       usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage; exit 2 ;;
     esac
@@ -157,6 +163,9 @@ wait_for_displayed() {
 if [[ -n "$SCREENSHOT" && $LAUNCH -eq 1 ]]; then
     for serial in "${DEVICES[@]}"; do
         wait_for_displayed "$serial" || true
+        # An `[[ ]] && sleep` one-liner would abort the script under set -e
+        # whenever the condition is false, which is the common case.
+        if [[ "$SETTLE" != "0" ]]; then sleep "$SETTLE"; fi
         out="$SCREENSHOT"
         if [[ ${#DEVICES[@]} -gt 1 ]]; then
             out="${SCREENSHOT%.*}-${serial//[:.]/_}.${SCREENSHOT##*.}"

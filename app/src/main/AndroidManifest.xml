@@ -14,9 +14,22 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!--
+        Predictive back is deliberately off. It defaults on at this targetSdk,
+        and the log proves the system had already registered an
+        OnBackInvokedCallback for our window.
+
+        OnBackInvokedCallback delivers an invocation with no duration, so a long
+        press becomes indistinguishable from a short one and the long-press menu
+        becomes unreachable. A television has no back gesture, only a key, so
+        the animated preview predictive back exists to provide is not something
+        a user here can ever see. Nothing is lost; a binding the interface
+        depends on is kept.
+    -->
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner"
+        android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
