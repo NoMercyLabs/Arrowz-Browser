@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NoMercy Browser</string>
+    <string name="shell_placeholder_title">NoMercy Browser</string>
+    <string name="shell_placeholder_body">Shell running. Press BACK to exit.</string>
+</resources>

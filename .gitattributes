@@ -1,0 +1,11 @@
+# gradlew is executed by /bin/sh on Linux CI. Committed with CRLF it fails with
+# "bad interpreter", which looks like a Gradle problem and is not one.
+* text=auto eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.jpg binary
+*.webp binary
+*.keystore binary
+*.jks binary

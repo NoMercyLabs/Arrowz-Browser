@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Unit tests
+        run: ./gradlew test
+
+      - name: Lint
+        run: ./gradlew lintDebug
+
+      # The app's published privacy claim is that it collects nothing. That is
+      # only true while none of these are on the classpath, so the build fails
+      # rather than the policy quietly becoming false.
+      - name: No analytics dependencies
+        run: |
+          ./gradlew :app:dependencies --configuration debugRuntimeClasspath > deps.txt
+          FORBIDDEN='com\.google\.firebase|play-services-analytics|play-services-measurement|com\.crashlytics|io\.sentry|com\.amplitude|com\.mixpanel|com\.segment|com\.appsflyer|com\.facebook\.android|com\.google\.android\.gms:play-services-ads'
+          if grep -E "$FORBIDDEN" deps.txt; then
+            echo "::error::An analytics, crash reporting or advertising dependency was added. See CONTRIBUTING.md."
+            exit 1
+          fi
+          echo "No analytics dependencies present."
+
+      - name: Locate build tools
+        id: tools
+        run: |
+          AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)
+          echo "aapt2=$AAPT2" >> "$GITHUB_OUTPUT"
+
+      # One artifact must run on every processor Android TV uses. Compose pulls
+      # in a native library transitively, so the honest check is that it is
+      # present for all four ABIs rather than that no native code exists.
+      - name: ABI coverage
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          NATIVE=$("${{ steps.tools.outputs.aapt2 }}" dump badging "$APK" | grep '^native-code:' || true)
+          echo "$NATIVE"
+          for ABI in arm64-v8a armeabi-v7a x86 x86_64; do
+            if ! echo "$NATIVE" | grep -q "'$ABI'"; then
+              echo "::error::Missing ABI $ABI. Check that abiFilters or splits have not been introduced."
+              exit 1
+            fi
+          done
+          echo "All four ABIs present."
+
+      # Without the leanback launcher category the app installs and is invisible
+      # on a TV. There is no runtime error to catch this.
+      - name: Leanback launchability
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          if ! "${{ steps.tools.outputs.aapt2 }}" dump badging "$APK" | grep -q '^leanback-launchable-activity:'; then
+            echo "::error::No leanback-launchable-activity. The app would install and never appear on the home screen."
+            exit 1
+          fi
+          echo "Leanback launcher entry present."
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
