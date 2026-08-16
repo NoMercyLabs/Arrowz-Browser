@@ -17,6 +17,7 @@ All notable changes to this project are recorded here. The format follows
 - User agent derived from the system's own, with the WebView markers removed and a TV token added.
 - `KeyDispatcher`, a pure state machine deciding what each of the six remote keys means, covered by unit tests.
 - Page rendering follows the system light and dark setting through algorithmic darkening.
+- Tab eviction policy: least recently used first, with tabs that are playing media or holding typed input never released.
 - Media session: playback publishes a real Android session with the page's title and artwork, and the remote's transport keys are routed back into the page, including on sites that never call the media session API.
 - Fullscreen video: the view WebView hands over is displayed, system bars hide, the screen is kept awake while it plays, and BACK exits it ahead of history.
 - Cleartext pages load, so http:// sites on a local network are reachable; https pages still cannot pull http subresources.
