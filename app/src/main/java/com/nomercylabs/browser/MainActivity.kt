@@ -285,6 +285,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onPickSuggestion = { suggestion -> navigate(suggestion.url) },
                     onVoice = { startVoiceInput() },
+                    onMenu = { showChrome(ChromeSurface.Menu) },
                     isDesktopSite = HomeContent.originOf(host?.state?.url ?: "") in desktopOrigins,
                     onToggleDesktopSite = { toggleDesktopSite() },
                     onBookmarks = { showChrome(ChromeSurface.Bookmarks) },
@@ -299,6 +300,7 @@ class MainActivity : ComponentActivity() {
                     onRemoveBookmark = { row -> removeBookmark(row.subtitle) },
                     permissionAsk = permissionAsk,
                     onAnswerPermission = { allow, remember -> answerPermission(allow, remember) },
+                    onCloseSurface = { showChrome(ChromeSurface.None) },
                     themeMode = themeMode,
                     onCycleTheme = { cycleThemeMode() },
                     onSelectTab = { id -> selectTab(id) },
@@ -836,6 +838,13 @@ class MainActivity : ComponentActivity() {
                         route(Command.StopMove(key))
                         return true
                     }
+
+                    // BACK is never handed to the system, whatever state the
+                    // tracker is in. A press whose key-down was lost — which
+                    // happens across the window transition a surface opening
+                    // causes — arrives here, and passing it on made the system
+                    // close the menu the long press had just opened.
+                    if (key == RemoteKey.Back) return true
                     return super.dispatchKeyEvent(event)
                 }
             }
@@ -957,6 +966,7 @@ private fun BrowserScreen(
     suggestionsFor: (String) -> List<Suggestion>,
     onPickSuggestion: (Suggestion) -> Unit,
     onVoice: () -> Unit,
+    onMenu: () -> Unit,
     isDesktopSite: Boolean,
     onToggleDesktopSite: () -> Unit,
     onBookmarks: () -> Unit,
@@ -969,6 +979,7 @@ private fun BrowserScreen(
     onRemoveBookmark: (LibraryRow) -> Unit,
     permissionAsk: PermissionAsk?,
     onAnswerPermission: (Boolean, Boolean) -> Unit,
+    onCloseSurface: () -> Unit,
     isFavourite: Boolean,
     onToggleFavourite: () -> Unit,
     themeMode: ThemeMode,
@@ -1056,6 +1067,18 @@ private fun BrowserScreen(
         // Owned here rather than inside either section, because it is the door
         // between them: the bar sends DOWN to it and the grid answers to it.
         val firstTile = remember { FocusRequester() }
+        val homeField = remember { FocusRequester() }
+
+        // Every surface that closes hands focus back to something. Compose does
+        // not restore it on its own: the surface that had focus is gone, the
+        // home screen becomes focusable again, and nothing asks for it — so
+        // every direction does nothing and the viewer is stranded on a screen
+        // that looks fine. Keyed on the surface, so it runs on each change.
+        LaunchedEffect(chrome, showHome) {
+            if (chrome == ChromeSurface.None && showHome) {
+                runCatching { homeField.requestFocus() }
+            }
+        }
 
         if (showHome) {
             // Opaque: the page underneath is still loaded and would otherwise
@@ -1088,7 +1111,9 @@ private fun BrowserScreen(
                     suggestionsFor = suggestionsFor,
                     onPickSuggestion = onPickSuggestion,
                     onVoice = onVoice,
+                    onMenu = onMenu,
                     downTarget = if (homeTiles.isEmpty()) null else firstTile,
+                    fieldFocusRequester = homeField,
                 )
                 HomeGrid(
                     tiles = homeTiles,
@@ -1126,6 +1151,7 @@ private fun BrowserScreen(
                     suggestionsFor = suggestionsFor,
                     onPickSuggestion = onPickSuggestion,
                     onVoice = onVoice,
+                    onMenu = onMenu,
                 )
             }
 
@@ -1174,6 +1200,7 @@ private fun BrowserScreen(
                 rows = bookmarkRows,
                 emptyMessage = stringResource(R.string.bookmarks_empty),
                 onOpen = onOpenTile,
+                onClose = onCloseSurface,
                 onRemove = onRemoveBookmark,
                 removeDescription = stringResource(R.string.bookmarks_remove),
             )
@@ -1183,6 +1210,7 @@ private fun BrowserScreen(
                 rows = historyRows,
                 emptyMessage = stringResource(R.string.history_empty),
                 onOpen = onOpenTile,
+                onClose = onCloseSurface,
             )
 
             ChromeSurface.Permission -> permissionAsk?.let { ask ->

@@ -66,17 +66,22 @@ object Palettes {
      * sticker applied to it.
      */
     val Dark = Palette(
-        surface = Color(0xFF0B0F14),
-        surfaceRaised = Color(0xFF151C24),
-        surfaceOffered = Color(0xFF1F2933),
+        surface = Color(0xFF0A0A0C),
+        surfaceRaised = Color(0xFF16161C),
+        surfaceOffered = Color(0xFF26262F),
         outline = Color(0x1FFFFFFF),
-        onSurface = Color(0xFFE8EEF4),
-        onSurfaceMuted = Color(0xFF8B9AA8),
-        accent = Color(0xFF38BDF8),
-        accentDeep = Color(0xFF0369A1),
+        onSurface = Color(0xFFF2F2F5),
+        onSurfaceMuted = Color(0xFF9A9AA6),
+        // Muted on purpose. The violet this replaced and the cyan that
+        // replaced it were both brighter than anything else on screen, so
+        // focus arrived as a flare rather than as emphasis. Desaturated steel
+        // still separates from every grey here and sits at the same volume as
+        // the surfaces around it.
+        accent = Color(0xFF8CA3B8),
+        accentDeep = Color(0xFF4A5A6B),
         danger = Color(0xFFF87171),
-        focusRing = Color(0xFF38BDF8),
-        onAccent = Color(0xFF06121C),
+        focusRing = Color(0xFF8CA3B8),
+        onAccent = Color(0xFF0A0A0C),
         isLight = false,
     )
 
@@ -87,16 +92,18 @@ object Palettes {
         // surface and controls sit a step darker on it. White cards on a grey
         // page read as paper on a desk, which is a document, not an interface;
         // this reads as controls on a screen.
-        surface = Color(0xFFF4F6F8),
-        surfaceRaised = Color(0xFFDCE3EA),
-        surfaceOffered = Color(0xFFC6D1DC),
+        surface = Color(0xFFF7F7FA),
+        surfaceRaised = Color(0xFFE2E2EA),
+        surfaceOffered = Color(0xFFCFCFDB),
         outline = Color(0x1F000000),
-        onSurface = Color(0xFF0F1720),
-        onSurfaceMuted = Color(0xFF52616F),
-        accent = Color(0xFF0369A1),
-        accentDeep = Color(0xFF075985),
+        onSurface = Color(0xFF14141A),
+        onSurfaceMuted = Color(0xFF5B5B66),
+        // Deeper than the dark palette's, not brighter: light mode needs the
+        // accent to survive against white rather than glow against black.
+        accent = Color(0xFF41556B),
+        accentDeep = Color(0xFF2C3B4A),
         danger = Color(0xFFB91C1C),
-        focusRing = Color(0xFF0369A1),
+        focusRing = Color(0xFF41556B),
         onAccent = Color(0xFFFFFFFF),
         isLight = true,
     )

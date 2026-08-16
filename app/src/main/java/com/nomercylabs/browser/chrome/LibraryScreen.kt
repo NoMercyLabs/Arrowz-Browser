@@ -40,6 +40,7 @@ fun LibraryScreen(
     rows: List<LibraryRow>,
     emptyMessage: String,
     onOpen: (String) -> Unit,
+    onClose: () -> Unit,
     onRemove: ((LibraryRow) -> Unit)? = null,
     removeDescription: String = "",
 ) {
@@ -58,10 +59,17 @@ fun LibraryScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        // The empty state is a row rather than a line of text, and it takes
+        // focus. A screen with nothing focusable strands the viewer: every
+        // direction does nothing, and only someone who already knows BACK is
+        // the way out gets out.
         if (rows.isEmpty()) {
-            BasicText(
-                text = emptyMessage,
-                style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextBody),
+            ListRow(
+                title = emptyMessage,
+                subtitle = "",
+                selected = false,
+                onClick = onClose,
+                requestInitialFocus = true,
             )
             return@Column
         }

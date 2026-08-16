@@ -71,6 +71,9 @@ object NavIcons {
     fun Globe(tint: Color) = Glyph(R.drawable.ic_globe, tint)
 
     @Composable
+    fun Profile(tint: Color) = Glyph(R.drawable.ic_profile, tint)
+
+    @Composable
     private fun Glyph(id: Int, tint: Color) {
         Image(
             painter = painterResource(id),

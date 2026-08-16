@@ -227,10 +227,12 @@ fun TvTextField(
     onEditingChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     requestInitialFocus: Boolean = false,
+    externalFocusRequester: FocusRequester? = null,
 ) {
     val palette: Palette = LocalPalette.current
     var focused: Boolean by remember { mutableStateOf(false) }
-    val boxFocusRequester = remember { FocusRequester() }
+    val ownBoxFocusRequester = remember { FocusRequester() }
+    val boxFocusRequester: FocusRequester = externalFocusRequester ?: ownBoxFocusRequester
     val fieldFocusRequester = remember { FocusRequester() }
     val interactionSource = remember { MutableInteractionSource() }
     val description: String = contentDescription
@@ -514,7 +516,9 @@ private fun tileColours(origin: String, palette: Palette): List<Color> {
     // recognisable colour and they all belong to the room.
     val step: Int = (origin.hashCode() % HUE_STEPS + HUE_STEPS) % HUE_STEPS
     val hue: Float = (HUE_START + step * HUE_SPAN / HUE_STEPS) / 360f
-    val saturation: Float = if (palette.isLight) 0.45f else 0.38f
+    // Low enough that a tile is a shade rather than a colour. At the previous
+    // saturation the grid was the loudest thing on a deliberately quiet screen.
+    val saturation: Float = if (palette.isLight) 0.30f else 0.22f
     // Dark enough in either palette to carry white letters, and never so dark
     // that the tile becomes one more black rectangle on a black screen.
     val lightness: Float = if (palette.isLight) 0.46f else 0.32f

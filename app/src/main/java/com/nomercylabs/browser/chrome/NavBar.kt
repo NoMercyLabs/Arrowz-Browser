@@ -65,6 +65,7 @@ fun NavBar(
     suggestionsFor: (String) -> List<Suggestion>,
     onPickSuggestion: (Suggestion) -> Unit,
     onVoice: () -> Unit,
+    onMenu: () -> Unit,
     /**
      * Where DOWN goes when there is nothing to suggest: the first tile of the
      * home grid. Named rather than searched for, because a geometric search
@@ -72,6 +73,8 @@ fun NavBar(
      * the field left no control focused anywhere on screen.
      */
     downTarget: FocusRequester? = null,
+    /** Held by whoever needs to send focus back here after a surface closes. */
+    fieldFocusRequester: FocusRequester? = null,
 ) {
     val palette: Palette = LocalPalette.current
     var typed: String by remember(currentUrl) { mutableStateOf(currentUrl) }
@@ -126,6 +129,7 @@ fun NavBar(
                 editing = editing,
                 onEditingChange = onEditingChange,
                 requestInitialFocus = true,
+                externalFocusRequester = fieldFocusRequester,
                 // weight, not fillMaxWidth: inside a Row the latter takes the
                 // whole width and draws over the buttons beside it.
                 //
@@ -155,6 +159,14 @@ fun NavBar(
                 contentDescription = stringResource(R.string.nav_tabs),
                 onClick = onTabs,
             ) { tint -> NavIcons.Tabs(tint) }
+
+            // Everything else lives behind this, at the end of the bar where a
+            // browser's menu has always been. Long-press BACK still opens it,
+            // but a shortcut nobody is told about cannot be the only way in.
+            IconButton(
+                contentDescription = stringResource(R.string.nav_menu),
+                onClick = onMenu,
+            ) { tint -> NavIcons.Profile(tint) }
 
             // Beside the glyph rather than inside it: a numeral drawn into a
             // 24dp box cannot be read from a sofa.
