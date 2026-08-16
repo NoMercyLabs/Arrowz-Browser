@@ -90,6 +90,29 @@ object NavIcons {
         )
     }
 
+    /** Filled when the page is kept: at three metres an outline and a fill read
+     *  apart far better than two shades of the same outline. */
+    @Composable
+    fun Star(tint: Color, filled: Boolean) = Glyph(tint) { stroke, size ->
+        val centre: Float = size / 2f
+        val outer: Float = size * 0.40f
+        val inner: Float = size * 0.17f
+        val star = Path()
+        for (point in 0 until 10) {
+            val radius: Float = if (point % 2 == 0) outer else inner
+            val angle: Double = Math.PI / 5.0 * point - Math.PI / 2.0
+            val x: Float = centre + (radius * kotlin.math.cos(angle)).toFloat()
+            val y: Float = centre + (radius * kotlin.math.sin(angle)).toFloat()
+            if (point == 0) star.moveTo(x, y) else star.lineTo(x, y)
+        }
+        star.close()
+        if (filled) {
+            drawPath(star, tint)
+        } else {
+            drawPath(star, tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
+        }
+    }
+
     @Composable
     fun Plus(tint: Color) = Glyph(tint) { stroke, size ->
         val mid: Float = size / 2f

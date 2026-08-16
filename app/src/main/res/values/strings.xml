@@ -11,4 +11,8 @@
     <string name="tabs_new">New tab</string>
     <string name="tabs_close">Close tab</string>
     <string name="tabs_untitled">Untitled page</string>
+    <string name="home_title">Favourites and most visited</string>
+    <string name="home_empty">Open a page, then keep it here with the star in the address bar</string>
+    <string name="nav_favourite_add">Keep this page</string>
+    <string name="nav_favourite_remove">Stop keeping this page</string>
 </resources>

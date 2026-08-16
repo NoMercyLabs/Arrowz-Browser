@@ -18,7 +18,9 @@ import android.view.KeyEvent
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +40,7 @@ import androidx.webkit.WebViewAssetLoader
 import com.nomercylabs.browser.browser.PageState
 import com.nomercylabs.browser.browser.WebViewHost
 import androidx.compose.ui.Alignment
+import com.nomercylabs.browser.chrome.HomeGrid
 import com.nomercylabs.browser.chrome.NavBar
 import com.nomercylabs.browser.chrome.TabList
 import com.nomercylabs.browser.cursor.CursorOverlay
@@ -53,10 +56,15 @@ import com.nomercylabs.browser.input.KeyDispatcher
 import com.nomercylabs.browser.input.KeyGestureTracker
 import com.nomercylabs.browser.input.KeyPhase
 import com.nomercylabs.browser.input.RemoteKey
+import com.nomercylabs.browser.data.BrowserStore
+import com.nomercylabs.browser.data.HomeContent
+import com.nomercylabs.browser.data.SqliteBrowserStore
+import com.nomercylabs.browser.data.Tile
 import com.nomercylabs.browser.tabs.MemoryPressure
 import com.nomercylabs.browser.tabs.Tab
 import com.nomercylabs.browser.tabs.TabPage
 import com.nomercylabs.browser.tabs.TabRegistry
+import com.nomercylabs.browser.ui.LocalPalette
 import com.nomercylabs.browser.ui.TvTheme
 
 /** Which chrome surface is over the page. Never two, and never both hidden and
@@ -94,6 +102,18 @@ class MainActivity : ComponentActivity() {
     private var cursorMoving: Boolean by mutableStateOf(false)
     private lateinit var fullscreen: FullscreenController
     private lateinit var mediaSession: MediaSessionBridge
+    private lateinit var store: BrowserStore
+
+    /**
+     * What the home screen draws, kept in composition and refreshed after every
+     * write. Reading the store on each frame would put SQLite on the main
+     * thread, which a television's storage is slow enough to be felt as dropped
+     * frames.
+     */
+    private var homeTiles: List<Tile> by mutableStateOf(emptyList())
+
+    /** Writes and reads happen here; the results are posted back. */
+    private val storeThread = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private val host: WebViewHost? get() = registry.active?.page as? WebViewHost
 
@@ -130,6 +150,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        store = SqliteBrowserStore(applicationContext)
+        refreshHome()
+
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
 
         mediaSession = MediaSessionBridge(
@@ -156,7 +179,9 @@ class MainActivity : ComponentActivity() {
             createPage = { tabId -> createPage(tabId) },
             isPlayingMedia = { tabId -> mediaSession.isPlaying(tabId) },
             now = { SystemClock.uptimeMillis() },
-            onOpened = { tab -> (tab.page as? WebViewHost)?.load(HOME_URL) },
+            // Nothing is loaded: a new tab shows the home screen, and the page
+            // underneath stays blank until the viewer chooses something.
+            onOpened = { },
         )
 
         pageContainer = FrameLayout(this)
@@ -180,8 +205,13 @@ class MainActivity : ComponentActivity() {
                     onNavigate = { typed -> navigate(typed) },
                     onBack = { host?.goBack() },
                     onReload = { host?.reload() },
-                    onHome = { host?.load(HOME_URL) },
+                    onHome = { registry.active?.isHome = true; showChrome(ChromeSurface.None) },
                     onTabs = { showChrome(ChromeSurface.Tabs) },
+                    onToggleFavourite = { toggleFavourite() },
+                    isFavourite = isCurrentPageFavourite(),
+                    showHome = registry.active?.isHome ?: true,
+                    homeTiles = homeTiles,
+                    onOpenTile = { url -> openFromHome(url) },
                     onSelectTab = { id -> selectTab(id) },
                     onCloseTab = { id -> closeTab(id) },
                     onNewTab = { newTab() },
@@ -211,6 +241,14 @@ class MainActivity : ComponentActivity() {
             }
             attachActivePage()
             replacement
+        }
+
+        page.onNavigated { url ->
+            storeThread.execute {
+                store.recordVisit(url)
+                val tiles: List<Tile> = HomeContent.tiles(store.bookmarks(), store.visits())
+                runOnUiThread { homeTiles = tiles }
+            }
         }
 
         page.onRendererDeath {
@@ -253,11 +291,38 @@ class MainActivity : ComponentActivity() {
         page.addBridge("NoMercyMedia", mediaSession.pageInterfaceFor(tabId))
     }
 
-    private fun newTab() {
-        pageContainer = FrameLayout(this)
+    private fun refreshHome() = storeThread.execute {
+        val tiles: List<Tile> = HomeContent.tiles(store.bookmarks(), store.visits())
+        runOnUiThread { homeTiles = tiles }
+    }
 
+    /** Toggling reads the tiles rather than the store, because the tiles are
+     *  what the viewer is looking at when they press it. */
+    private fun toggleFavourite() {
+        val page: PageState = host?.state ?: return
+        if (page.url.isEmpty()) return
+
+        val origin: String = HomeContent.originOf(page.url)
+        val wasFavourite: Boolean = homeTiles.any { tile -> tile.isFavourite && tile.origin == origin }
+        val url: String = page.url
+        val title: String = page.title
+
+        storeThread.execute {
+            if (wasFavourite) store.removeBookmark(origin) else store.addBookmark(url, title)
+            val tiles: List<Tile> = HomeContent.tiles(store.bookmarks(), store.visits())
+            runOnUiThread { homeTiles = tiles }
+        }
+    }
+
+    private fun openFromHome(url: String) {
+        registry.active?.isHome = false
+        host?.load(url)
+        showChrome(ChromeSurface.None)
+    }
+
+    private fun newTab() {
         registry.open()
-        host?.load(HOME_URL)
+        registry.active?.isHome = true
         attachActivePage()
         showChrome(ChromeSurface.None)
         relievePressure()
@@ -318,6 +383,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        storeThread.shutdown()
         mediaSession.destroy()
     }
 
@@ -348,7 +414,9 @@ class MainActivity : ComponentActivity() {
         canGoBack = host?.state?.canGoBack ?: false,
         isPageAtTop = host?.state?.isAtTop ?: true,
         isCursorAtTopEdge = cursor.y <= EdgeScroller.EDGE_BAND_PX,
-        isChromeOpen = chrome != ChromeSurface.None,
+        // The home screen is Compose focus territory, exactly like the bar and
+        // the tab list: there is no page under the pointer to click.
+        isChromeOpen = chrome != ChromeSurface.None || (registry.active?.isHome ?: true),
         isFullscreen = fullscreenActive,
         isEditingText = editingText,
     )
@@ -499,7 +567,15 @@ class MainActivity : ComponentActivity() {
      * without navigating rather than silently doing nothing, so the refusal is
      * at least visible as the bar dismissing.
      */
+    private fun isCurrentPageFavourite(): Boolean {
+        val url: String = host?.state?.url ?: return false
+        if (url.isEmpty()) return false
+        val origin: String = HomeContent.originOf(url)
+        return homeTiles.any { tile -> tile.isFavourite && tile.origin == origin }
+    }
+
     private fun navigate(typed: String) {
+        registry.active?.isHome = false
         when (val destination = UrlOrSearch.resolve(typed, UrlOrSearch.DUCKDUCKGO)) {
             is UrlOrSearch.Destination.Url -> host?.load(destination.url)
             is UrlOrSearch.Destination.Search ->
@@ -532,6 +608,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun BrowserScreen(
     pageContainer: FrameLayout,
+    showHome: Boolean,
+    homeTiles: List<Tile>,
+    onOpenTile: (String) -> Unit,
+    isFavourite: Boolean,
+    onToggleFavourite: () -> Unit,
     scrollPage: (dx: Int, dy: Int) -> Unit,
     activeId: String,
     tabs: List<Tab>,
@@ -606,9 +687,42 @@ private fun BrowserScreen(
         // activity's business, and Compose never has to reparent anything.
         AndroidView(factory = { pageContainer }, modifier = Modifier.fillMaxSize())
 
-        // Hidden while a chrome surface is open, so it is never ambiguous on
-        // screen which of the two focus systems the D-pad is driving.
-        CursorOverlay(position = position, visible = chrome == ChromeSurface.None)
+        // Drawn over the page rather than instead of it, so a tab keeps its
+        // loaded page while home is showing and returns to it untouched.
+        //
+        // The bar is part of this screen rather than something to reveal: a new
+        // tab is where an address gets typed, and hiding the field behind a
+        // gesture on the one screen that exists to accept one is perverse.
+        if (showHome) {
+            // Opaque: the page underneath is still loaded and would otherwise
+            // read through the gaps as a ghost of the last thing opened.
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(LocalPalette.current.surface),
+            ) {
+                NavBar(
+                    currentUrl = page.url,
+                    canGoBack = page.canGoBack,
+                    progress = page.progress,
+                    tabCount = tabs.size,
+                    isFavourite = isFavourite,
+                    editing = editing,
+                    onEditingChange = onEditingChange,
+                    onNavigate = onNavigate,
+                    onBack = onBack,
+                    onReload = onReload,
+                    onHome = onHome,
+                    onTabs = onTabs,
+                    onToggleFavourite = onToggleFavourite,
+                )
+                HomeGrid(tiles = homeTiles, onOpen = onOpenTile)
+            }
+        }
+
+        // Hidden while a chrome surface or the home screen is up, so it is never
+        // ambiguous on screen which of the two focus systems the D-pad drives.
+        CursorOverlay(position = position, visible = chrome == ChromeSurface.None && !showHome)
 
         when (chrome) {
             ChromeSurface.None -> Unit
@@ -622,6 +736,7 @@ private fun BrowserScreen(
                     canGoBack = page.canGoBack,
                     progress = page.progress,
                     tabCount = tabs.size,
+                    isFavourite = isFavourite,
                     editing = editing,
                     onEditingChange = onEditingChange,
                     onNavigate = onNavigate,
@@ -629,6 +744,7 @@ private fun BrowserScreen(
                     onReload = onReload,
                     onHome = onHome,
                     onTabs = onTabs,
+                    onToggleFavourite = onToggleFavourite,
                 )
             }
 

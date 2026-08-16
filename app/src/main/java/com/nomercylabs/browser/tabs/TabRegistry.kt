@@ -34,6 +34,10 @@ interface TabPage {
 class Tab(val id: String, val page: TabPage) {
     var lastUsedMillis: Long by mutableStateOf(0L)
         internal set
+
+    /** A new tab shows the home screen rather than a page. Held per tab, because
+     *  switching back to a tab that never navigated must still show it. */
+    var isHome: Boolean by mutableStateOf(true)
 }
 
 /**

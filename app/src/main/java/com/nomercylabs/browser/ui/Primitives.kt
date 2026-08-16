@@ -309,6 +309,95 @@ fun ListRow(
     }
 }
 
+/**
+ * A site tile: a big letter on a colour derived from the origin, with the title
+ * underneath.
+ *
+ * The letter is not a placeholder for a favicon that never arrived. Fetching one
+ * is a network request per tile at exactly the moment the screen has to appear,
+ * so the tile draws something instant, offline and stable across launches, and a
+ * favicon captured while browsing can replace it later without the grid changing
+ * shape.
+ */
+@Composable
+fun SiteTile(
+    title: String,
+    origin: String,
+    isFavourite: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    requestInitialFocus: Boolean = false,
+) {
+    val palette: Palette = LocalPalette.current
+    var focused: Boolean by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val focusRequester = remember { FocusRequester() }
+    val label: String = title.ifBlank { origin }
+
+    LaunchedEffect(requestInitialFocus) {
+        if (requestInitialFocus) focusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = modifier
+            .focusRequester(focusRequester)
+            .onFocusChanged { focused = it.isFocused }
+            .tvFocusable(focused)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .semantics { contentDescription = label }
+            // Inside the focus ring, so the growth on focus has somewhere to go
+            // and the title is not clipped by the tile's own edge.
+            .padding(Tokens.SpaceXs),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TILE_HEIGHT)
+                .background(tileColour(origin, palette), RoundedCornerShape(Tokens.RadiusMd)),
+            contentAlignment = Alignment.Center,
+        ) {
+            BasicText(
+                text = origin.firstOrNull()?.uppercase() ?: "?",
+                style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextTitle),
+            )
+            if (isFavourite) {
+                BasicText(
+                    text = "★",
+                    style = TextStyle(color = palette.accent, fontSize = Tokens.TextBody),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Tokens.SpaceSm),
+                )
+            }
+        }
+        BasicText(
+            text = label,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = TextStyle(
+                color = if (focused) palette.accent else palette.onSurfaceMuted,
+                fontSize = Tokens.TextSmall,
+            ),
+            modifier = Modifier.padding(top = Tokens.SpaceXs),
+        )
+    }
+}
+
+/**
+ * Derived from the origin so a site keeps its colour between launches, and kept
+ * dark enough that the letter on top stays legible.
+ */
+private fun tileColour(origin: String, palette: Palette): Color {
+    val hue: Float = ((origin.hashCode() % HUE_STEPS + HUE_STEPS) % HUE_STEPS).toFloat() / HUE_STEPS
+    return androidx.compose.ui.graphics.Color.hsl(
+        hue = hue * 360f,
+        saturation = 0.35f,
+        lightness = if (palette.isLight) 0.72f else 0.28f,
+    )
+}
+
+private const val HUE_STEPS: Int = 24
+private val TILE_HEIGHT = 96.dp
 private val BUTTON_SIZE = 48.dp
 private val SELECTED_BAR_HEIGHT = 40.dp
 private const val SELECTED_ALPHA: Float = 0.35f

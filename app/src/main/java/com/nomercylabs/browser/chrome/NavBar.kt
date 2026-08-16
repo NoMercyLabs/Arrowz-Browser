@@ -48,6 +48,7 @@ fun NavBar(
     canGoBack: Boolean,
     progress: Int,
     tabCount: Int,
+    isFavourite: Boolean,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
     onNavigate: (String) -> Unit,
@@ -55,6 +56,7 @@ fun NavBar(
     onReload: () -> Unit,
     onHome: () -> Unit,
     onTabs: () -> Unit,
+    onToggleFavourite: () -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
     var typed: String by remember(currentUrl) { mutableStateOf(currentUrl) }
@@ -98,6 +100,13 @@ fun NavBar(
                 // whole width and draws over the buttons beside it.
                 modifier = Modifier.weight(1f),
             )
+
+            IconButton(
+                contentDescription = stringResource(
+                    if (isFavourite) R.string.nav_favourite_remove else R.string.nav_favourite_add,
+                ),
+                onClick = onToggleFavourite,
+            ) { tint -> NavIcons.Star(tint, filled = isFavourite) }
 
             IconButton(
                 contentDescription = stringResource(R.string.nav_tabs),

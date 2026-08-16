@@ -80,6 +80,7 @@ class WebViewHost(initialView: WebView) : TabPage {
 
     private var rebuild: ((Bundle, String) -> WebView)? = null
     private var rendererDeathListener: (() -> Unit)? = null
+    private var navigationListener: ((String) -> Unit)? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(
@@ -99,6 +100,7 @@ class WebViewHost(initialView: WebView) : TabPage {
                 state.canGoBack = canGoBack
                 state.error = null
                 lastUrl = url
+                navigationListener?.invoke(url)
                 captureState()
                 refreshScrollPosition()
             },
@@ -136,6 +138,11 @@ class WebViewHost(initialView: WebView) : TabPage {
      */
     fun onRebuildRequired(factory: (savedState: Bundle, url: String) -> WebView) {
         rebuild = factory
+    }
+
+    /** Every committed navigation, which is what a visit count is counting. */
+    fun onNavigated(listener: (url: String) -> Unit) {
+        navigationListener = listener
     }
 
     /**
