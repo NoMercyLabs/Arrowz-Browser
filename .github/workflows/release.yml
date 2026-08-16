@@ -44,11 +44,26 @@ jobs:
           name: app-release-aab
           path: app/build/outputs/bundle/release/app-release.aab
 
+      # The secrets context is not available in a step-level if, so the check
+      # has to become a step output. Using it directly makes GitHub reject the
+      # whole workflow file, which shows up as a run with no jobs at all.
+      - name: Is Play publishing configured
+        id: play
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_JSON" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "No Play service account configured; skipping upload."
+          fi
+
       # Publishing to the internal track only. Promotion to production stays a
       # manual decision in the Play Console, because a browser reaching every
       # Android TV device is not something a tag push should do on its own.
       - name: Publish to internal testing
-        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        if: steps.play.outputs.configured == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
