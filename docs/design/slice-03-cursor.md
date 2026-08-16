@@ -61,6 +61,14 @@ That tracker also fixed a separate defect: a stray key-up arriving during a wind
 
 **`isPageAtTop` alone cannot trigger the nav bar.** Every freshly loaded page is at scroll zero, so keying the reveal on that made UP stop moving the pointer entirely: the cursor could never travel upward on any unscrolled page. The reveal now also requires the pointer to be against the top edge, which is what "one more UP" actually means once a pointer exists.
 
+## The frame loop must not outlive the movement
+
+A `withFrameMillis` loop inside `while (true)` requests a frame every frame for as long as the app is open. Compose therefore never goes idle, the display is held at full refresh, and the app sits at measurable CPU doing nothing at all. On the 8010 that was a steady 12.5% with the pointer stationary, and it presents as the page feeling stuck rather than as anything obviously wrong with the app.
+
+The loop is now keyed on whether a direction is held, so it is created when movement starts and cancelled when it stops. Measured on the same device afterwards: 0.0% at idle.
+
+This is the general rule for anything animated here. Nothing may hold a frame callback open while there is nothing to animate.
+
 ## Acceptance
 
 Unit tests: acceleration at exact time offsets, clamping at all four edges, and that release resets velocity.

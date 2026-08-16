@@ -57,6 +57,14 @@ class MainActivity : ComponentActivity() {
     private val gestures = KeyGestureTracker()
     private var chromeOpen: Boolean by mutableStateOf(false)
     private var fullscreenActive: Boolean by mutableStateOf(false)
+
+    /**
+     * Mirrors the cursor's held state into composition so the frame loop can be
+     * torn down when nothing is moving. Without it the loop requests a frame
+     * every frame forever, Compose never goes idle, and the app holds the
+     * device at full refresh doing nothing.
+     */
+    private var cursorMoving: Boolean by mutableStateOf(false)
     private lateinit var fullscreen: FullscreenController
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +82,7 @@ class MainActivity : ComponentActivity() {
                 // takes over, so the pointer would keep travelling behind it.
                 cursor.releaseAll()
                 gestures.clear()
+                cursorMoving = false
                 fullscreen.enter(view, callback)
             },
             onExitFullscreen = { fullscreen.exit() },
@@ -94,6 +103,7 @@ class MainActivity : ComponentActivity() {
                     cursor = cursor,
                     page = host.state,
                     chromeOpen = chromeOpen,
+                    cursorMoving = cursorMoving,
                     onNavigate = { typed -> navigate(typed) },
                     onBack = { host.goBack() },
                     onReload = { host.reload() },
@@ -126,6 +136,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         cursor.releaseAll()
         gestures.clear()
+        cursorMoving = false
     }
 
     private fun isSystemDark(): Boolean =
@@ -150,6 +161,7 @@ class MainActivity : ComponentActivity() {
         if (open) {
             cursor.releaseAll()
             gestures.clear()
+            cursorMoving = false
         }
     }
 
@@ -206,8 +218,16 @@ class MainActivity : ComponentActivity() {
         Command.GoBack -> { host.goBack(); true }
         Command.ExitApp -> { finish(); true }
 
-        is Command.StartMove -> { cursor.press(command.key, SystemClock.uptimeMillis()); true }
-        is Command.StopMove -> { cursor.release(command.key); true }
+        is Command.StartMove -> {
+            cursor.press(command.key, SystemClock.uptimeMillis())
+            cursorMoving = cursor.isMoving
+            true
+        }
+        is Command.StopMove -> {
+            cursor.release(command.key)
+            cursorMoving = cursor.isMoving
+            true
+        }
         Command.Activate -> { TouchSynthesizer.tap(webView, cursor.position()); true }
 
         /**
@@ -278,6 +298,7 @@ private fun BrowserScreen(
     cursor: CursorState,
     page: PageState,
     chromeOpen: Boolean,
+    cursorMoving: Boolean,
     onNavigate: (String) -> Unit,
     onBack: () -> Unit,
     onReload: () -> Unit,
@@ -295,9 +316,16 @@ private fun BrowserScreen(
     LaunchedEffect(widthPx, heightPx) {
         cursor.centreIn(widthPx, heightPx)
         position = cursor.position()
+    }
+
+    // Keyed on movement so the loop exists only while there is something to
+    // animate. An always-running withFrameMillis loop keeps Compose permanently
+    // busy and the device permanently awake.
+    LaunchedEffect(cursorMoving, widthPx, heightPx) {
+        if (!cursorMoving) return@LaunchedEffect
 
         var previousFrameMillis: Long = 0L
-        while (true) {
+        while (cursorMoving) {
             withFrameMillis { frameMillis ->
                 val frameDelta: Long =
                     if (previousFrameMillis == 0L) 0L else frameMillis - previousFrameMillis
