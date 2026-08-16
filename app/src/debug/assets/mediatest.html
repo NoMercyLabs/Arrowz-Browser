@@ -46,6 +46,9 @@
   const el = document.createElement('audio');
   el.src = toneWav(30, 220);
   el.controls = true;
+  // Loops, because a fixture that stops after thirty seconds cannot outlast the
+  // steps of a test that opens tabs between measurements.
+  el.loop = true;
   document.body.appendChild(el);
   document.getElementById('audio').addEventListener('click', () => {
     if (el.paused) el.play(); else el.pause();

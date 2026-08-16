@@ -374,10 +374,23 @@ class MainActivity : ComponentActivity() {
         } else {
             ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
-        if (blocking) {
-            host?.view?.clearFocus()
-            pageContainer.clearFocus()
+
+        // Blocking descendants is not enough. A WebView whose page has a focused
+        // text field keeps the input connection, so the keyboard our own field
+        // raises is still typing into the page: measured on the 8000, an address
+        // typed into the bar arrived in DuckDuckGo's search box. Taking its
+        // focusability away and dismissing the page's keyboard is what actually
+        // hands the editor over.
+        host?.view?.let { view ->
+            view.isFocusable = !blocking
+            view.isFocusableInTouchMode = !blocking
+            if (blocking) {
+                view.clearFocus()
+                getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                    ?.hideSoftInputFromWindow(view.windowToken, 0)
+            }
         }
+        if (blocking) pageContainer.clearFocus()
         if (surface != ChromeSurface.None) {
             cursor.releaseAll()
             gestures.clear()
