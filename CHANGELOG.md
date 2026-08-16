@@ -12,3 +12,4 @@ All notable changes to this project are recorded here. The format follows
 - Leanback manifest with the launcher intent filter, touchscreen declared not required, and a banner.
 - Light and dark palettes resolved from the system setting, with the window theme themed separately so the launch transition does not flash the wrong colour.
 - CI gates for ABI coverage, leanback launchability, and the absence of analytics dependencies.
+- `deploy.sh` and `deploy.ps1` for build, install, launch, screenshot and logcat across one or more devices.
