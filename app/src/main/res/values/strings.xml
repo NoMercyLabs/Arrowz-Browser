@@ -15,4 +15,10 @@
     <string name="home_empty">Open a page, then keep it here with the star in the address bar</string>
     <string name="nav_favourite_add">Keep this page</string>
     <string name="nav_favourite_remove">Stop keeping this page</string>
+    <string name="menu_title">Menu</string>
+    <string name="menu_home">Home screen</string>
+    <string name="menu_theme">Appearance</string>
+    <string name="menu_theme_system">Follow the television</string>
+    <string name="menu_theme_light">Light</string>
+    <string name="menu_theme_dark">Dark</string>
 </resources>

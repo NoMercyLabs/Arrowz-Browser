@@ -28,8 +28,20 @@ class KeyGestureTracker(private val longPressMillis: Long = DEFAULT_LONG_PRESS_M
      * @param repeatCount the platform's auto-repeat counter, used only to tell a
      *   genuine first press from a repeat.
      */
-    fun onDown(key: RemoteKey, nowMillis: Long, repeatCount: Int): KeyPhase? {
+    fun onDown(key: RemoteKey, nowMillis: Long, repeatCount: Int, isLongPress: Boolean = false): KeyPhase? {
         val existing: Press? = presses[key]
+
+        // The framework sets its own long-press flag on the repeat, at the same
+        // threshold every other app uses. When it says so, that is the answer:
+        // the timer below is for the injected and synthetic events that carry no
+        // flag, not a second opinion about what a hold is.
+        if (isLongPress) {
+            val press: Press = existing ?: Press(downMillis = nowMillis, longPressFired = false)
+            if (press.longPressFired) return null
+            press.longPressFired = true
+            presses[key] = press
+            return KeyPhase.LongPress
+        }
 
         if (repeatCount == 0 || existing == null) {
             presses[key] = Press(downMillis = nowMillis, longPressFired = false)
@@ -48,16 +60,25 @@ class KeyGestureTracker(private val longPressMillis: Long = DEFAULT_LONG_PRESS_M
     }
 
     /**
-     * Returns null when the release must not produce a command: either the long
-     * press already consumed it, or no matching press was ever seen.
+     * What a release means. The two silent cases are not the same thing and
+     * cannot be collapsed into null:
      *
-     * That second case is not hypothetical. A stray key-up arrives during a
-     * window transition, and treating it as a real press made the browser exit
-     * two seconds after launching, for a button nobody touched.
+     * - [Release.Swallowed] follows a long press we already acted on. The app
+     *   must eat it. Handing it on let the system see a plain BACK and close the
+     *   browser, so holding BACK opened the menu and then quit.
+     * - [Release.Unknown] is a key-up with no press behind it, which arrives
+     *   during window transitions. Treating that as a real press made the
+     *   browser exit two seconds after launching, for a button nobody touched.
      */
-    fun onUp(key: RemoteKey): KeyPhase? {
-        val press: Press = presses.remove(key) ?: return null
-        return if (press.longPressFired) null else KeyPhase.Up
+    sealed interface Release {
+        data object Swallowed : Release
+        data object Unknown : Release
+        data class Acted(val phase: KeyPhase) : Release
+    }
+
+    fun onUp(key: RemoteKey): Release {
+        val press: Press = presses.remove(key) ?: return Release.Unknown
+        return if (press.longPressFired) Release.Swallowed else Release.Acted(KeyPhase.Up)
     }
 
     /** A key held while the app leaves the foreground never receives its up. */

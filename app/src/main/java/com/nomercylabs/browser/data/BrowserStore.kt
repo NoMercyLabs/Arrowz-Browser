@@ -22,6 +22,11 @@ interface BrowserStore {
     fun addBookmark(url: String, title: String)
     fun removeBookmark(origin: String)
     fun recordVisit(url: String)
+
+    /** Settings live in the same store as everything else, so they carry the
+     *  same identity fields and travel with a sync when one arrives. */
+    fun preference(key: String): String?
+    fun setPreference(key: String, value: String)
 }
 
 /**
@@ -49,6 +54,15 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
                 """.trimIndent(),
             )
             db.execSQL("CREATE UNIQUE INDEX bookmarks_origin ON bookmarks(origin)")
+            db.execSQL(
+                """
+                CREATE TABLE prefs (
+                    key TEXT PRIMARY KEY NOT NULL,
+                    value TEXT NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
             db.execSQL(
                 """
                 CREATE TABLE visits (
@@ -145,6 +159,23 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
             ON CONFLICT(origin) DO UPDATE SET count = count + 1, lastVisitedAt = excluded.lastVisitedAt
             """.trimIndent(),
             arrayOf<Any>(origin, System.currentTimeMillis()),
+        )
+    }
+
+    override fun preference(key: String): String? {
+        helper.readableDatabase.rawQuery("SELECT value FROM prefs WHERE key = ?", arrayOf(key))
+            .use { cursor ->
+                return if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+    }
+
+    override fun setPreference(key: String, value: String) {
+        helper.writableDatabase.execSQL(
+            """
+            INSERT INTO prefs(key, value, updatedAt) VALUES(?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt
+            """.trimIndent(),
+            arrayOf<Any>(key, value, System.currentTimeMillis()),
         )
     }
 

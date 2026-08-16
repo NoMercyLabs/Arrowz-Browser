@@ -41,6 +41,7 @@ import com.nomercylabs.browser.browser.PageState
 import com.nomercylabs.browser.browser.WebViewHost
 import androidx.compose.ui.Alignment
 import com.nomercylabs.browser.chrome.HomeGrid
+import com.nomercylabs.browser.chrome.MenuOverlay
 import com.nomercylabs.browser.chrome.NavBar
 import com.nomercylabs.browser.chrome.TabList
 import com.nomercylabs.browser.cursor.CursorOverlay
@@ -65,11 +66,12 @@ import com.nomercylabs.browser.tabs.Tab
 import com.nomercylabs.browser.tabs.TabPage
 import com.nomercylabs.browser.tabs.TabRegistry
 import com.nomercylabs.browser.ui.LocalPalette
+import com.nomercylabs.browser.ui.ThemeMode
 import com.nomercylabs.browser.ui.TvTheme
 
 /** Which chrome surface is over the page. Never two, and never both hidden and
  *  consuming input. */
-private enum class ChromeSurface { None, NavBar, Tabs }
+private enum class ChromeSurface { None, NavBar, Tabs, Menu }
 
 class MainActivity : ComponentActivity() {
 
@@ -112,6 +114,10 @@ class MainActivity : ComponentActivity() {
      */
     private var homeTiles: List<Tile> by mutableStateOf(emptyList())
 
+    /** Read from the store on the way in and written back on every change, so
+     *  the choice survives a restart the way a browser's does. */
+    private var themeMode: ThemeMode by mutableStateOf(ThemeMode.System)
+
     /** Writes and reads happen here; the results are posted back. */
     private val storeThread = java.util.concurrent.Executors.newSingleThreadExecutor()
 
@@ -152,6 +158,7 @@ class MainActivity : ComponentActivity() {
 
         store = SqliteBrowserStore(applicationContext)
         refreshHome()
+        loadThemeMode()
 
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
 
@@ -190,7 +197,7 @@ class MainActivity : ComponentActivity() {
         attachActivePage()
 
         setContent {
-            TvTheme {
+            TvTheme(mode = themeMode) {
                 BrowserScreen(
                     pageContainer = pageContainer,
                     scrollPage = { dx, dy -> host?.view?.scrollBy(dx, dy) },
@@ -212,6 +219,8 @@ class MainActivity : ComponentActivity() {
                     showHome = registry.active?.isHome ?: true,
                     homeTiles = homeTiles,
                     onOpenTile = { url -> openFromHome(url) },
+                    themeMode = themeMode,
+                    onCycleTheme = { cycleThemeMode() },
                     onSelectTab = { id -> selectTab(id) },
                     onCloseTab = { id -> closeTab(id) },
                     onNewTab = { newTab() },
@@ -289,6 +298,38 @@ class MainActivity : ComponentActivity() {
         // One interface per tab, so every report the page makes carries which
         // tab it came from.
         page.addBridge("NoMercyMedia", mediaSession.pageInterfaceFor(tabId))
+    }
+
+    private fun loadThemeMode() = storeThread.execute {
+        val stored: String = store.preference(THEME_KEY) ?: ThemeMode.System.name
+        val mode: ThemeMode = runCatching { ThemeMode.valueOf(stored) }.getOrDefault(ThemeMode.System)
+        runOnUiThread { themeMode = mode }
+    }
+
+    /**
+     * Cycles rather than opening a submenu: three values, and a second level on
+     * a television costs two presses to reach and two to leave.
+     */
+    private fun cycleThemeMode() {
+        val next: ThemeMode = when (themeMode) {
+            ThemeMode.System -> ThemeMode.Light
+            ThemeMode.Light -> ThemeMode.Dark
+            ThemeMode.Dark -> ThemeMode.System
+        }
+        themeMode = next
+        storeThread.execute { store.setPreference(THEME_KEY, next.name) }
+
+        // The page reads the app's theme through algorithmic darkening, so the
+        // choice has to reach every live tab and not only the chrome.
+        registry.tabs.forEach { tab ->
+            (tab.page as? WebViewHost)?.applyTheme(isDarkFor(next))
+        }
+    }
+
+    private fun isDarkFor(mode: ThemeMode): Boolean = when (mode) {
+        ThemeMode.System -> isSystemDark()
+        ThemeMode.Dark -> true
+        ThemeMode.Light -> false
     }
 
     private fun refreshHome() = storeThread.execute {
@@ -486,20 +527,34 @@ class MainActivity : ComponentActivity() {
         val key: RemoteKey = remoteKeyOf(event.keyCode) ?: return super.dispatchKeyEvent(event)
 
         val phase: KeyPhase? = when (event.action) {
-            KeyEvent.ACTION_DOWN -> gestures.onDown(key, event.eventTime, event.repeatCount)
-            KeyEvent.ACTION_UP -> gestures.onUp(key)
+            KeyEvent.ACTION_DOWN ->
+                gestures.onDown(key, event.eventTime, event.repeatCount, event.isLongPress)
+
+            KeyEvent.ACTION_UP -> when (val release = gestures.onUp(key)) {
+                is KeyGestureTracker.Release.Acted -> release.phase
+
+                // Eaten deliberately: the long press already acted, and passing
+                // this on let the system read a plain BACK and close the app.
+                KeyGestureTracker.Release.Swallowed -> {
+                    if (key in DIRECTIONS) route(Command.StopMove(key))
+                    return true
+                }
+
+                KeyGestureTracker.Release.Unknown -> {
+                    // A direction's release must always stop the pointer, even
+                    // when no press was seen, or the cursor keeps travelling.
+                    if (key in DIRECTIONS) {
+                        route(Command.StopMove(key))
+                        return true
+                    }
+                    return super.dispatchKeyEvent(event)
+                }
+            }
+
             else -> null
         }
 
-        // A direction's release must always stop the pointer, even when the
-        // press produced something else, or the cursor keeps travelling.
-        if (phase == null) {
-            if (event.action == KeyEvent.ACTION_UP && key in DIRECTIONS) {
-                route(Command.StopMove(key))
-                return true
-            }
-            return super.dispatchKeyEvent(event)
-        }
+        if (phase == null) return super.dispatchKeyEvent(event)
 
         // Declining a key means handing it on, never eating it. Returning false
         // from here does not pass the event down — it ends it — so every key the
@@ -516,8 +571,12 @@ class MainActivity : ComponentActivity() {
         // of them look identical on screen.
         if (BuildConfig.DEBUG) Log.v(INPUT_TAG, "key=$key phase=$phase cmd=$command ${browserState()}")
 
-        if (command == null) return super.dispatchKeyEvent(event)
-        return route(command) || super.dispatchKeyEvent(event)
+        // BACK is never handed on. Its press phase deliberately produces no
+        // command — the meaning is decided on release — and forwarding that
+        // press let the system's own back dispatcher close the activity, so a
+        // hold opened the menu and the browser vanished behind it.
+        if (command == null) return key == RemoteKey.Back || super.dispatchKeyEvent(event)
+        return route(command) || key == RemoteKey.Back || super.dispatchKeyEvent(event)
     }
 
     private fun route(command: Command?): Boolean = when (command) {
@@ -540,19 +599,10 @@ class MainActivity : ComponentActivity() {
             true
         }
 
-        /**
-         * The menu lands in slice 10. Until then this must still be CONSUMED,
-         * because an unhandled long press is not cancelled by the framework and
-         * the following key-up fires a second command: one hold produced both
-         * OpenMenu and ExitApp, so holding BACK quit the browser.
-         *
-         * Consuming it without doing anything would make the key dead, so it
-         * falls back to what a short BACK would have done. Slice 10 replaces
-         * the fallback with the menu.
-         */
-        Command.OpenMenu -> route(
-            KeyDispatcher.dispatch(RemoteKey.Back, KeyPhase.Up, browserState()),
-        )
+        // Consumed here, and it must stay consumed: an unhandled long press is
+        // not cancelled by the framework, so the following key-up fired a
+        // second command and one hold produced both OpenMenu and ExitApp.
+        Command.OpenMenu -> { showChrome(ChromeSurface.Menu); true }
 
         Command.RevealNavBar -> { showChrome(ChromeSurface.NavBar); true }
         Command.CloseChrome -> { showChrome(ChromeSurface.None); true }
@@ -599,6 +649,7 @@ class MainActivity : ComponentActivity() {
         const val HOME_URL: String = "https://duckduckgo.com/"
         const val INPUT_TAG: String = "NmInput"
         const val TABS_TAG: String = "NmTabs"
+        const val THEME_KEY: String = "theme.mode"
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
@@ -613,6 +664,8 @@ private fun BrowserScreen(
     onOpenTile: (String) -> Unit,
     isFavourite: Boolean,
     onToggleFavourite: () -> Unit,
+    themeMode: ThemeMode,
+    onCycleTheme: () -> Unit,
     scrollPage: (dx: Int, dy: Int) -> Unit,
     activeId: String,
     tabs: List<Tab>,
@@ -747,6 +800,18 @@ private fun BrowserScreen(
                     onToggleFavourite = onToggleFavourite,
                 )
             }
+
+            ChromeSurface.Menu -> MenuOverlay(
+                canKeepPage = !showHome && page.url.isNotEmpty(),
+                isFavourite = isFavourite,
+                themeMode = themeMode,
+                onNewTab = onNewTab,
+                onTabs = onTabs,
+                onHome = onHome,
+                onReload = onReload,
+                onToggleFavourite = onToggleFavourite,
+                onCycleTheme = onCycleTheme,
+            )
 
             ChromeSurface.Tabs -> TabList(
                 tabs = tabs,
