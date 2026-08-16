@@ -38,6 +38,7 @@ import com.nomercylabs.browser.ui.overscan
 fun MenuOverlay(
     canKeepPage: Boolean,
     isFavourite: Boolean,
+    isDesktopSite: Boolean,
     themeMode: ThemeMode,
     onNewTab: () -> Unit,
     onTabs: () -> Unit,
@@ -45,6 +46,10 @@ fun MenuOverlay(
     onReload: () -> Unit,
     onToggleFavourite: () -> Unit,
     onCycleTheme: () -> Unit,
+    onBookmarks: () -> Unit,
+    onHistory: () -> Unit,
+    onFind: () -> Unit,
+    onToggleDesktopSite: () -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
 
@@ -94,12 +99,39 @@ fun MenuOverlay(
                 onClick = onToggleFavourite,
             )
             ListRow(
+                title = stringResource(R.string.menu_find),
+                subtitle = "",
+                selected = false,
+                onClick = onFind,
+            )
+            ListRow(
+                title = stringResource(
+                    if (isDesktopSite) R.string.menu_tv_site else R.string.menu_desktop_site,
+                ),
+                subtitle = "",
+                selected = isDesktopSite,
+                onClick = onToggleDesktopSite,
+            )
+            ListRow(
                 title = stringResource(R.string.nav_reload),
                 subtitle = "",
                 selected = false,
                 onClick = onReload,
             )
         }
+
+        ListRow(
+            title = stringResource(R.string.menu_bookmarks),
+            subtitle = "",
+            selected = false,
+            onClick = onBookmarks,
+        )
+        ListRow(
+            title = stringResource(R.string.menu_history),
+            subtitle = "",
+            selected = false,
+            onClick = onHistory,
+        )
 
         ListRow(
             title = stringResource(R.string.menu_theme),

@@ -62,6 +62,7 @@ fun NavBar(
     onToggleFavourite: () -> Unit,
     suggestionsFor: (String) -> List<Suggestion>,
     onPickSuggestion: (Suggestion) -> Unit,
+    onVoice: () -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
     var typed: String by remember(currentUrl) { mutableStateOf(currentUrl) }
@@ -121,6 +122,13 @@ fun NavBar(
                         if (suggestions.isNotEmpty()) down = firstSuggestion
                     },
             )
+
+            // Beside the field, because speaking is the alternative to typing
+            // into it and a remote's mic is the fastest way in on a television.
+            IconButton(
+                contentDescription = stringResource(R.string.nav_voice),
+                onClick = onVoice,
+            ) { tint -> NavIcons.Mic(tint) }
 
             IconButton(
                 contentDescription = stringResource(

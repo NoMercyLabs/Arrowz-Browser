@@ -53,6 +53,24 @@ object NavIcons {
         Glyph(if (filled) R.drawable.ic_star_filled else R.drawable.ic_star, tint)
 
     @Composable
+    fun Previous(tint: Color) = Glyph(R.drawable.ic_previous, tint)
+
+    @Composable
+    fun Next(tint: Color) = Glyph(R.drawable.ic_next, tint)
+
+    @Composable
+    fun Mic(tint: Color) = Glyph(R.drawable.ic_mic, tint)
+
+    @Composable
+    fun Bookmarks(tint: Color) = Glyph(R.drawable.ic_bookmarks, tint)
+
+    @Composable
+    fun History(tint: Color) = Glyph(R.drawable.ic_history, tint)
+
+    @Composable
+    fun Globe(tint: Color) = Glyph(R.drawable.ic_globe, tint)
+
+    @Composable
     private fun Glyph(id: Int, tint: Color) {
         Image(
             painter = painterResource(id),

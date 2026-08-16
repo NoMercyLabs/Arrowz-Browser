@@ -31,6 +31,13 @@ class PageState {
     var error: PageError? by mutableStateOf(null)
         internal set
 
+    /** How many times the find query appears, and which one is highlighted.
+     *  Counted asynchronously, so both are zero until WebView says otherwise. */
+    var findMatches: Int by mutableStateOf(0)
+        internal set
+    var findActiveMatch: Int by mutableStateOf(0)
+        internal set
+
     /**
      * Read from the view rather than tracked, because a page can scroll itself
      * at any time without telling us, and a stale value here would send UP to
@@ -90,6 +97,13 @@ class WebViewHost(initialView: WebView) : TabPage {
         onExitFullscreen: () -> Unit,
         assetLoader: androidx.webkit.WebViewAssetLoader? = null,
         scriptsAtDocumentStart: List<String> = emptyList(),
+        onPermissionAsked: (String, List<String>, () -> Unit, () -> Unit) -> Unit = { _, _, _, deny -> deny() },
+        onFileChooser: (
+            android.webkit.ValueCallback<Array<android.net.Uri>>,
+            android.webkit.WebChromeClient.FileChooserParams,
+        ) -> Boolean = { _, _ -> false },
+        onDownload: (url: String, userAgent: String, contentDisposition: String, mimeType: String) -> Unit =
+            { _, _, _, _ -> },
     ) {
         val target: WebView = view ?: return
         WebSettingsFactory.apply(target, userAgent, isDarkTheme)
@@ -120,9 +134,50 @@ class WebViewHost(initialView: WebView) : TabPage {
             onTitle = { title -> state.title = title },
             onEnterFullscreen = onEnterFullscreen,
             onExitFullscreen = onExitFullscreen,
+            onPermissionAsked = onPermissionAsked,
+            onFileChooser = onFileChooser,
         )
 
+        target.setDownloadListener { url, agent, disposition, mimeType, _ ->
+            onDownload(url, agent, disposition, mimeType)
+        }
+
+        target.setFindListener { activeIndex, matches, isDoneCounting ->
+            if (isDoneCounting) {
+                state.findMatches = matches
+                state.findActiveMatch = if (matches == 0) 0 else activeIndex + 1
+            }
+        }
+
         target.setOnScrollChangeListener { _, _, _, _, _ -> refreshScrollPosition() }
+    }
+
+    /** Changing what the site is told requires asking it again, so this reloads
+     *  rather than waiting for the next navigation to pick the new string up. */
+    fun setUserAgent(userAgent: String) {
+        val target: WebView = view ?: return
+        target.settings.userAgentString = userAgent
+        target.reload()
+    }
+
+    fun find(query: String) {
+        if (query.isEmpty()) {
+            clearFind()
+            return
+        }
+        view?.findAllAsync(query)
+    }
+
+    /** Wraps at both ends, which is what every browser does and what stops a
+     *  press at the last match from appearing to be a dead key. */
+    fun findNext(forward: Boolean) {
+        view?.findNext(forward)
+    }
+
+    fun clearFind() {
+        view?.clearMatches()
+        state.findMatches = 0
+        state.findActiveMatch = 0
     }
 
     fun load(url: String) {

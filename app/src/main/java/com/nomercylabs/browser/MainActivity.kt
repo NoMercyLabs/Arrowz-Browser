@@ -7,7 +7,22 @@ package com.nomercylabs.browser
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.app.DownloadManager
+import android.content.Intent
 import android.content.res.Configuration
+import android.net.Uri
+import android.os.Environment
+import android.speech.RecognizerIntent
+import android.webkit.URLUtil
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.compose.ui.res.stringResource
+import com.nomercylabs.browser.chrome.FindBar
+import com.nomercylabs.browser.chrome.LibraryRow
+import com.nomercylabs.browser.chrome.LibraryScreen
+import com.nomercylabs.browser.chrome.PermissionAsk
+import com.nomercylabs.browser.chrome.PermissionPrompt
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -80,7 +95,7 @@ import com.nomercylabs.browser.ui.TvTheme
 
 /** Which chrome surface is over the page. Never two, and never both hidden and
  *  consuming input. */
-private enum class ChromeSurface { None, NavBar, Tabs, Menu }
+private enum class ChromeSurface { None, NavBar, Tabs, Menu, Find, Bookmarks, History, Permission }
 
 class MainActivity : ComponentActivity() {
 
@@ -106,6 +121,32 @@ class MainActivity : ComponentActivity() {
     /** Set while the keyboard holds window focus, so regaining it is read as the
      *  keyboard closing rather than as the app simply coming forward. */
     private var keyboardTookFocus: Boolean = false
+
+    private var permissionAsk: PermissionAsk? by mutableStateOf(null)
+    private var historyRows: List<LibraryRow> by mutableStateOf(emptyList())
+
+    /** Origins the viewer asked to see the desktop build of, restored on the way
+     *  in so the choice outlives the tab it was made in. */
+    private var desktopOrigins: Set<String> by mutableStateOf(emptySet())
+
+    private var pendingFileChooser: android.webkit.ValueCallback<Array<Uri>>? = null
+
+    private val voiceInput = registerForActivityResult(StartActivityForResult()) { result ->
+        val spoken: String? = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            ?.firstOrNull()
+        if (!spoken.isNullOrBlank()) navigate(spoken)
+    }
+
+    /**
+     * Answered even when nothing was chosen. A file input whose callback never
+     * fires stays dead until the page reloads, which reads as the site being
+     * broken rather than as a cancelled chooser.
+     */
+    private val fileChooser = registerForActivityResult(OpenDocument()) { uri ->
+        pendingFileChooser?.onReceiveValue(if (uri == null) null else arrayOf(uri))
+        pendingFileChooser = null
+    }
     private var fullscreenActive: Boolean by mutableStateOf(false)
 
     /**
@@ -177,6 +218,7 @@ class MainActivity : ComponentActivity() {
         store = SqliteBrowserStore(applicationContext)
         refreshHome()
         loadThemeMode()
+        loadDesktopOrigins()
 
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
 
@@ -241,6 +283,21 @@ class MainActivity : ComponentActivity() {
                         Suggestions.forQuery(query, knownBookmarks, knownVisits)
                     },
                     onPickSuggestion = { suggestion -> navigate(suggestion.url) },
+                    onVoice = { startVoiceInput() },
+                    isDesktopSite = HomeContent.originOf(host?.state?.url ?: "") in desktopOrigins,
+                    onToggleDesktopSite = { toggleDesktopSite() },
+                    onBookmarks = { showChrome(ChromeSurface.Bookmarks) },
+                    onHistory = { refreshHistory(); showChrome(ChromeSurface.History) },
+                    onFind = { showChrome(ChromeSurface.Find) },
+                    onFindQuery = { query -> host?.find(query) },
+                    onFindStep = { forward -> host?.findNext(forward) },
+                    bookmarkRows = homeTiles
+                        .filter { tile -> tile.isFavourite }
+                        .map { tile -> LibraryRow(tile.title, tile.origin, tile.url) },
+                    historyRows = historyRows,
+                    onRemoveBookmark = { row -> removeBookmark(row.subtitle) },
+                    permissionAsk = permissionAsk,
+                    onAnswerPermission = { allow, remember -> answerPermission(allow, remember) },
                     themeMode = themeMode,
                     onCycleTheme = { cycleThemeMode() },
                     onSelectTab = { id -> selectTab(id) },
@@ -275,8 +332,9 @@ class MainActivity : ComponentActivity() {
         }
 
         page.onNavigated { url ->
+            val title: String = page.pageTitle
             storeThread.execute {
-                store.recordVisit(url)
+                store.recordVisit(url, title)
                 publishLibrary()
             }
         }
@@ -296,7 +354,7 @@ class MainActivity : ComponentActivity() {
 
     private fun configureHost(page: WebViewHost, tabId: String) {
         page.configure(
-            userAgent = UserAgents.tenFoot(this, BuildConfig.VERSION_NAME),
+            userAgent = userAgentFor(page.pageUrl),
             isDarkTheme = isSystemDark(),
             onEnterFullscreen = { view, callback ->
                 // A held direction never receives its key-up once the video view
@@ -314,6 +372,13 @@ class MainActivity : ComponentActivity() {
                     .build()
             } else {
                 null
+            },
+            onPermissionAsked = { origin, kinds, grant, deny ->
+                answerOrAsk(origin, kinds, grant, deny)
+            },
+            onFileChooser = { callback, params -> openFileChooser(callback, params) },
+            onDownload = { url, agent, disposition, mimeType ->
+                startDownload(url, agent, disposition, mimeType)
             },
         )
         // One interface per tab, so every report the page makes carries which
@@ -354,6 +419,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshHome() = storeThread.execute { publishLibrary() }
+
+    private fun refreshHistory() = storeThread.execute {
+        val rows: List<LibraryRow> = store.history().map { entry ->
+            LibraryRow(entry.title.ifBlank { entry.origin }, entry.url, entry.url)
+        }
+        runOnUiThread { historyRows = rows }
+    }
+
+    private fun removeBookmark(origin: String) = storeThread.execute {
+        store.removeBookmark(origin)
+        publishLibrary()
+    }
+
+    private fun loadDesktopOrigins() = storeThread.execute {
+        val stored: Set<String> = (store.preference(DESKTOP_ORIGINS_KEY) ?: "")
+            .split(',')
+            .filter { origin -> origin.isNotBlank() }
+            .toSet()
+        runOnUiThread { desktopOrigins = stored }
+    }
 
     /**
      * One read of the store feeding both the home grid and the address bar.
@@ -517,6 +602,136 @@ class MainActivity : ComponentActivity() {
         isEditingText = editingText || isKeyboardShowing(),
     )
 
+    /**
+     * Speaking instead of typing.
+     *
+     * Not every television has a speech service — the recogniser is part of the
+     * Google app, which a stripped Android TV build may not carry — so the
+     * absence is reported rather than crashing on a missing activity.
+     */
+    private fun startVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.nav_voice))
+        }
+        runCatching { voiceInput.launch(intent) }
+            .onFailure { showMessage(getString(R.string.voice_unavailable)) }
+    }
+
+    /**
+     * Answers from the store when the site has been asked before, and only
+     * interrupts when it has not. A prompt on every page load is how a browser
+     * teaches people to press allow without reading.
+     */
+    private fun answerOrAsk(
+        origin: String,
+        kinds: List<String>,
+        grant: () -> Unit,
+        deny: () -> Unit,
+    ) {
+        val host: String = HomeContent.originOf(origin)
+        storeThread.execute {
+            val decisions: List<String?> = kinds.map { kind -> store.sitePermission(host, kind) }
+            runOnUiThread {
+                when {
+                    decisions.any { decision -> decision == DECISION_BLOCK } -> deny()
+                    decisions.all { decision -> decision == DECISION_ALLOW } -> grant()
+                    else -> {
+                        permissionAsk = PermissionAsk(host, kinds, grant, deny)
+                        showChrome(ChromeSurface.Permission)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun answerPermission(allow: Boolean, remember: Boolean) {
+        val ask: PermissionAsk = permissionAsk ?: return
+        permissionAsk = null
+        showChrome(ChromeSurface.None)
+
+        if (allow) ask.grant() else ask.deny()
+        if (!remember) return
+
+        val decision: String = if (allow) DECISION_ALLOW else DECISION_BLOCK
+        storeThread.execute {
+            ask.kinds.forEach { kind -> store.setSitePermission(ask.origin, kind, decision) }
+        }
+    }
+
+    /**
+     * Handed to the system downloader rather than read through the WebView.
+     * DownloadManager survives the app being killed, which a television will do
+     * to anything in the background, and it already speaks HTTP redirects and
+     * resumption.
+     */
+    private fun startDownload(
+        url: String,
+        userAgent: String,
+        contentDisposition: String,
+        mimeType: String,
+    ) {
+        val name: String = URLUtil.guessFileName(url, contentDisposition, mimeType)
+        val request = DownloadManager.Request(Uri.parse(url)).apply {
+            setMimeType(mimeType)
+            addRequestHeader("User-Agent", userAgent)
+            setTitle(name)
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            setDestinationInExternalFilesDir(this@MainActivity, Environment.DIRECTORY_DOWNLOADS, name)
+        }
+        runCatching { getSystemService(DownloadManager::class.java).enqueue(request) }
+            .onSuccess { showMessage(getString(R.string.download_started, name)) }
+    }
+
+    private fun openFileChooser(
+        callback: android.webkit.ValueCallback<Array<Uri>>,
+        params: android.webkit.WebChromeClient.FileChooserParams,
+    ): Boolean {
+        // A pending callback that never fires leaves the page's file input dead
+        // until reload, so an older one is always answered before it is dropped.
+        pendingFileChooser?.onReceiveValue(null)
+        pendingFileChooser = callback
+
+        val types: Array<String> = params.acceptTypes
+            .filter { type -> type.isNotBlank() }
+            .toTypedArray()
+        return runCatching {
+            fileChooser.launch(if (types.isEmpty()) arrayOf("*/*") else types)
+        }.onFailure {
+            pendingFileChooser = null
+            callback.onReceiveValue(null)
+        }.isSuccess
+    }
+
+    /**
+     * Per site, because the reason to switch is a specific site's layout rather
+     * than a preference about the web.
+     */
+    private fun userAgentFor(url: String): String {
+        val origin: String = HomeContent.originOf(url)
+        return if (origin.isNotEmpty() && origin in desktopOrigins) {
+            UserAgents.mobile(this, BuildConfig.VERSION_NAME)
+        } else {
+            UserAgents.tenFoot(this, BuildConfig.VERSION_NAME)
+        }
+    }
+
+    private fun toggleDesktopSite() {
+        val url: String = host?.state?.url ?: return
+        val origin: String = HomeContent.originOf(url)
+        if (origin.isEmpty()) return
+
+        desktopOrigins = if (origin in desktopOrigins) desktopOrigins - origin else desktopOrigins + origin
+        showChrome(ChromeSurface.None)
+        host?.setUserAgent(userAgentFor(url))
+
+        val stored: String = desktopOrigins.joinToString(",")
+        storeThread.execute { store.setPreference(DESKTOP_ORIGINS_KEY, stored) }
+    }
+
+    private fun showMessage(message: String) =
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
     private fun hideKeyboard() {
         WindowCompat.getInsetsController(window, window.decorView)
             .hide(WindowInsetsCompat.Type.ime())
@@ -532,8 +747,17 @@ class MainActivity : ComponentActivity() {
      * cursor would keep travelling behind it.
      */
     private fun showChrome(surface: ChromeSurface) {
+        // Leaving find without clearing takes the highlights with it; leaving a
+        // prompt unanswered leaves the page waiting forever, so walking away
+        // from the question is a refusal rather than silence.
+        if (chrome == ChromeSurface.Find && surface != ChromeSurface.Find) host?.clearFind()
+        if (chrome == ChromeSurface.Permission && surface != ChromeSurface.Permission) {
+            permissionAsk?.deny()
+            permissionAsk = null
+        }
+
         chrome = surface
-        if (surface != ChromeSurface.NavBar) editingText = false
+        if (surface != ChromeSurface.NavBar && surface != ChromeSurface.Find) editingText = false
 
         // The page keeps Android focus while a surface is over it, so every key
         // the dispatcher hands on goes to the WebView's own focus walking rather
@@ -714,6 +938,9 @@ class MainActivity : ComponentActivity() {
         const val INPUT_TAG: String = "NmInput"
         const val TABS_TAG: String = "NmTabs"
         const val THEME_KEY: String = "theme.mode"
+        const val DESKTOP_ORIGINS_KEY: String = "ua.desktop.origins"
+        const val DECISION_ALLOW: String = "allow"
+        const val DECISION_BLOCK: String = "block"
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
@@ -728,6 +955,19 @@ private fun BrowserScreen(
     onOpenTile: (String) -> Unit,
     suggestionsFor: (String) -> List<Suggestion>,
     onPickSuggestion: (Suggestion) -> Unit,
+    onVoice: () -> Unit,
+    isDesktopSite: Boolean,
+    onToggleDesktopSite: () -> Unit,
+    onBookmarks: () -> Unit,
+    onHistory: () -> Unit,
+    onFind: () -> Unit,
+    onFindQuery: (String) -> Unit,
+    onFindStep: (Boolean) -> Unit,
+    bookmarkRows: List<LibraryRow>,
+    historyRows: List<LibraryRow>,
+    onRemoveBookmark: (LibraryRow) -> Unit,
+    permissionAsk: PermissionAsk?,
+    onAnswerPermission: (Boolean, Boolean) -> Unit,
     isFavourite: Boolean,
     onToggleFavourite: () -> Unit,
     themeMode: ThemeMode,
@@ -842,6 +1082,7 @@ private fun BrowserScreen(
                     onToggleFavourite = onToggleFavourite,
                     suggestionsFor = suggestionsFor,
                     onPickSuggestion = onPickSuggestion,
+                    onVoice = onVoice,
                 )
                 HomeGrid(tiles = homeTiles, onOpen = onOpenTile)
             }
@@ -874,12 +1115,14 @@ private fun BrowserScreen(
                     onToggleFavourite = onToggleFavourite,
                     suggestionsFor = suggestionsFor,
                     onPickSuggestion = onPickSuggestion,
+                    onVoice = onVoice,
                 )
             }
 
             ChromeSurface.Menu -> MenuOverlay(
                 canKeepPage = !showHome && page.url.isNotEmpty(),
                 isFavourite = isFavourite,
+                isDesktopSite = isDesktopSite,
                 themeMode = themeMode,
                 onNewTab = onNewTab,
                 onTabs = onTabs,
@@ -887,6 +1130,10 @@ private fun BrowserScreen(
                 onReload = onReload,
                 onToggleFavourite = onToggleFavourite,
                 onCycleTheme = onCycleTheme,
+                onBookmarks = onBookmarks,
+                onHistory = onHistory,
+                onFind = onFind,
+                onToggleDesktopSite = onToggleDesktopSite,
             )
 
             ChromeSurface.Tabs -> TabList(
@@ -896,6 +1143,41 @@ private fun BrowserScreen(
                 onClose = onCloseTab,
                 onNewTab = onNewTab,
             )
+
+            ChromeSurface.Find -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                FindBar(
+                    matches = page.findMatches,
+                    activeMatch = page.findActiveMatch,
+                    editing = editing,
+                    onEditingChange = onEditingChange,
+                    onQueryChange = onFindQuery,
+                    onNext = { onFindStep(true) },
+                    onPrevious = { onFindStep(false) },
+                )
+            }
+
+            ChromeSurface.Bookmarks -> LibraryScreen(
+                title = stringResource(R.string.bookmarks_title),
+                rows = bookmarkRows,
+                emptyMessage = stringResource(R.string.bookmarks_empty),
+                onOpen = onOpenTile,
+                onRemove = onRemoveBookmark,
+                removeDescription = stringResource(R.string.bookmarks_remove),
+            )
+
+            ChromeSurface.History -> LibraryScreen(
+                title = stringResource(R.string.history_title),
+                rows = historyRows,
+                emptyMessage = stringResource(R.string.history_empty),
+                onOpen = onOpenTile,
+            )
+
+            ChromeSurface.Permission -> permissionAsk?.let { ask ->
+                PermissionPrompt(ask = ask, onAnswer = onAnswerPermission)
+            } ?: Unit
         }
     }
 }

@@ -1,4 +1,4 @@
-# Slice 10 — address suggestions
+# Slice 10 — address suggestions and the rest of the chrome
 
 Entering a URL on a remote is the worst thing a television browser asks of
 anyone. The goal of this slice is not autocomplete for its own sake: it is that
@@ -41,6 +41,42 @@ keyboard as "editing" regardless of what the composition believes.
 out of the field landed on nothing at all — no ring anywhere, and the next press
 lost. The suggestion rows appear underneath the control the viewer is standing
 on, so the field names its `down` target rather than searching for one.
+
+## The rest of the chrome
+
+**Voice.** A mic beside the address field, `RecognizerIntent`, result navigated
+directly. The recogniser is part of the Google app and a stripped television
+build may not carry it, so its absence is reported rather than crashing on a
+missing activity. This is the fastest way into the browser on a remote and it
+sidesteps the leanback keyboard entirely.
+
+**Find in page.** `findAllAsync` with the match count beside the field. The
+count is not decoration: the highlighted match is usually off screen when a
+search starts, and "3 of 12" is the only thing telling the viewer that pressing
+next is worth doing. Leaving the surface clears the highlights.
+
+**Kept pages and recently visited.** One screen with different rows, because a
+list is what a search by eye needs; tiles are for the handful of places worth
+recognising by colour. History is now real pages rather than the per-origin
+counters the home grid uses, which meant a second table and a schema version.
+That upgrade adds tables and rebuilds nothing — somebody's television already
+holds their favourites.
+
+**Site permissions.** Camera, microphone and location are asked once per origin
+and the answer is remembered. Blocking is the first row and the one focus lands
+on: this device sits in a living room, the person holding the remote may not
+have asked for the page that is asking, and the safe answer has to be the one a
+stray OK produces. Walking away from the prompt is a refusal rather than
+silence, or the page waits forever.
+
+**Downloads** go to `DownloadManager` rather than being read through the
+WebView, because it survives the app being killed, which a television will do.
+**The file chooser** always answers its callback even when nothing was chosen —
+a file input whose callback never fires stays dead until reload, which reads as
+the site being broken.
+
+**Desktop or television site**, per origin and remembered, because the reason to
+switch is one site's layout rather than a preference about the web.
 
 ## Still to do, in the D-pad slice
 

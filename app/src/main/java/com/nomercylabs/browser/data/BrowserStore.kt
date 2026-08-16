@@ -23,6 +23,20 @@ interface BrowserStore {
     fun removeBookmark(origin: String)
     fun recordVisit(url: String)
 
+    /** The title arrives after the navigation does, so the two-argument form is
+     *  what the browser actually calls once a page has named itself. */
+    fun recordVisit(url: String, title: String)
+
+    /** Individual pages, newest first, as opposed to the per-origin counters
+     *  [visits] keeps for the home grid. */
+    fun history(limit: Int = 200): List<HistoryEntry>
+    fun clearHistory()
+
+    /** A site's answer to one question, remembered so it is asked once. Null
+     *  means never asked, which is not the same as denied. */
+    fun sitePermission(origin: String, kind: String): String?
+    fun setSitePermission(origin: String, kind: String, decision: String)
+
     /** Settings live in the same store as everything else, so they carry the
      *  same identity fields and travel with a sync when one arrives. */
     fun preference(key: String): String?
@@ -72,9 +86,19 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
                 )
                 """.trimIndent(),
             )
+            db.execSQL(CREATE_HISTORY)
+            db.execSQL(CREATE_SITE_PERMISSIONS)
         }
 
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            // Added, never rebuilt. Somebody's television already holds their
+            // favourites and their most-visited counts, and a drop-and-recreate
+            // upgrade would take both away to add a table beside them.
+            if (oldVersion < VERSION_WITH_HISTORY) {
+                db.execSQL(CREATE_HISTORY)
+                db.execSQL(CREATE_SITE_PERMISSIONS)
+            }
+        }
     }
 
     override fun bookmarks(): List<Bookmark> {
@@ -149,9 +173,22 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
         )
     }
 
-    override fun recordVisit(url: String) {
+    override fun recordVisit(url: String) = recordVisit(url, title = "")
+
+    override fun recordVisit(url: String, title: String) {
         val origin: String = HomeContent.originOf(url)
         if (origin.isEmpty()) return
+
+        helper.writableDatabase.execSQL(
+            "INSERT INTO history(id, url, title, origin, visitedAt) VALUES(?, ?, ?, ?, ?)",
+            arrayOf<Any>(
+                java.util.UUID.randomUUID().toString(),
+                url,
+                title,
+                origin,
+                System.currentTimeMillis(),
+            ),
+        )
 
         helper.writableDatabase.execSQL(
             """
@@ -179,8 +216,73 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
         )
     }
 
+    override fun history(limit: Int): List<HistoryEntry> {
+        val rows = mutableListOf<HistoryEntry>()
+        helper.readableDatabase.rawQuery(
+            "SELECT id, url, title, origin, visitedAt FROM history ORDER BY visitedAt DESC LIMIT ?",
+            arrayOf(limit.toString()),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                rows += HistoryEntry(
+                    id = cursor.getString(0),
+                    url = cursor.getString(1),
+                    title = cursor.getString(2),
+                    origin = cursor.getString(3),
+                    visitedAt = cursor.getLong(4),
+                )
+            }
+        }
+        return rows
+    }
+
+    override fun clearHistory() {
+        helper.writableDatabase.delete("history", null, null)
+        helper.writableDatabase.delete("visits", null, null)
+    }
+
+    override fun sitePermission(origin: String, kind: String): String? {
+        helper.readableDatabase.rawQuery(
+            "SELECT decision FROM site_permissions WHERE origin = ? AND kind = ?",
+            arrayOf(origin, kind),
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }
+
+    override fun setSitePermission(origin: String, kind: String, decision: String) {
+        helper.writableDatabase.execSQL(
+            """
+            INSERT INTO site_permissions(origin, kind, decision, updatedAt) VALUES(?, ?, ?, ?)
+            ON CONFLICT(origin, kind) DO UPDATE SET
+                decision = excluded.decision, updatedAt = excluded.updatedAt
+            """.trimIndent(),
+            arrayOf<Any>(origin, kind, decision, System.currentTimeMillis()),
+        )
+    }
+
     private companion object {
         const val DATABASE_NAME: String = "browser.db"
-        const val VERSION: Int = 1
+        const val VERSION: Int = 2
+        const val VERSION_WITH_HISTORY: Int = 2
+
+        val CREATE_HISTORY: String = """
+            CREATE TABLE history (
+                id TEXT PRIMARY KEY NOT NULL,
+                url TEXT NOT NULL,
+                title TEXT NOT NULL,
+                origin TEXT NOT NULL,
+                visitedAt INTEGER NOT NULL
+            )
+        """.trimIndent()
+
+        val CREATE_SITE_PERMISSIONS: String = """
+            CREATE TABLE site_permissions (
+                origin TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                PRIMARY KEY (origin, kind)
+            )
+        """.trimIndent()
     }
 }

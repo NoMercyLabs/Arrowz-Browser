@@ -8,6 +8,36 @@
     <string name="suggest_search">Search for %1$s</string>
     <string name="suggest_open">Go to %1$s</string>
     <string name="suggest_list_description">Suggestions</string>
+
+    <string name="find_placeholder">Find on this page</string>
+    <string name="find_previous">Previous match</string>
+    <string name="find_next">Next match</string>
+    <string name="menu_find">Find on page</string>
+
+    <string name="nav_voice">Speak an address or search</string>
+    <string name="voice_unavailable">This television has no speech recogniser</string>
+
+    <string name="menu_bookmarks">Kept pages</string>
+    <string name="menu_history">Recently visited</string>
+    <string name="menu_history_clear">Forget everything visited</string>
+    <string name="bookmarks_title">Kept pages</string>
+    <string name="bookmarks_empty">Nothing kept yet. The star in the address bar keeps a page.</string>
+    <string name="bookmarks_remove">Stop keeping this page</string>
+    <string name="history_title">Recently visited</string>
+    <string name="history_empty">Nothing visited yet</string>
+
+    <string name="menu_desktop_site">Ask for the desktop site</string>
+    <string name="menu_tv_site">Ask for the television site</string>
+
+    <string name="permission_title">%1$s is asking</string>
+    <string name="permission_camera">the camera</string>
+    <string name="permission_microphone">the microphone</string>
+    <string name="permission_location">where this television is</string>
+    <string name="permission_block">Block, and do not ask again</string>
+    <string name="permission_allow_once">Allow this once</string>
+    <string name="permission_allow_always">Allow, and remember</string>
+
+    <string name="download_started">Downloading %1$s</string>
     <string name="nav_field_description">Address and search field</string>
     <string name="nav_tabs">Open tabs</string>
     <string name="tabs_title">Tabs (%1$d)</string>

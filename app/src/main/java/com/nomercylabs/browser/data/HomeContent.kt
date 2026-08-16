@@ -26,6 +26,15 @@ data class Bookmark(
 
 data class Visit(val origin: String, val count: Int, val lastVisitedAt: Long)
 
+/** One page, as opposed to [Visit], which is one site. */
+data class HistoryEntry(
+    val id: String,
+    val url: String,
+    val title: String,
+    val origin: String,
+    val visitedAt: Long,
+)
+
 /** What a tile draws. The letter and colour come from the origin, so a tile
  *  needs no network before it can appear. */
 data class Tile(val title: String, val url: String, val origin: String, val isFavourite: Boolean)
