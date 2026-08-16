@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">NoMercy Browser</string>
+    <string name="nav_back">Go back</string>
+    <string name="nav_reload">Reload page</string>
+    <string name="nav_home">Go to home page</string>
+    <string name="nav_placeholder">Search or enter address</string>
+    <string name="nav_field_description">Address and search field</string>
 </resources>

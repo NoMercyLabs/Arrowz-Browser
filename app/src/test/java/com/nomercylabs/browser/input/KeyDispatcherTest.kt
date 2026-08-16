@@ -74,17 +74,36 @@ class KeyDispatcherTest {
     }
 
     @Test
-    fun upDoesNotRevealTheNavBarWhileChromeOrFullscreenIsShowing() {
-        val chromeOpen = BrowserState(isPageAtTop = true, isCursorAtTopEdge = true, isChromeOpen = true)
-        assertEquals(
-            Command.StartMove(RemoteKey.Up),
-            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, chromeOpen),
-        )
-
+    fun upDoesNotRevealTheNavBarWhileFullscreenIsShowing() {
         val fullscreen = BrowserState(isPageAtTop = true, isCursorAtTopEdge = true, isFullscreen = true)
         assertEquals(
             Command.StartMove(RemoteKey.Up),
             KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, fullscreen),
+        )
+    }
+
+    // Exactly one focus system may consume a key. With chrome open, directional
+    // keys and Center belong to Compose focus, so the pointer must not move.
+    @Test
+    fun chromeOpenMeansChromeOwnsTheDpad() {
+        val open = BrowserState(isChromeOpen = true, isPageAtTop = true, isCursorAtTopEdge = true)
+        listOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right, RemoteKey.Center)
+            .forEach { key ->
+                assertNull(KeyDispatcher.dispatch(key, KeyPhase.Down, open))
+                assertNull(KeyDispatcher.dispatch(key, KeyPhase.Up, open))
+            }
+    }
+
+    // BACK is the exception: closing the chrome is the dispatcher's decision.
+    @Test
+    fun backStillClosesChromeWhileItOwnsTheDpad() {
+        assertEquals(
+            Command.CloseChrome,
+            KeyDispatcher.dispatch(
+                RemoteKey.Back,
+                KeyPhase.Up,
+                BrowserState(isChromeOpen = true, canGoBack = true),
+            ),
         )
     }
 

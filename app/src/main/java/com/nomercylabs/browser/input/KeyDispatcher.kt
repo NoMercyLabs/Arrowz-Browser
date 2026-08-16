@@ -24,6 +24,14 @@ object KeyDispatcher {
         // jumping to somewhere they did not ask for.
         if (state.mode == InputMode.ScreenReader && key != RemoteKey.Back) return null
 
+        // Chrome open means chrome owns the D-pad. Two focus systems exist here
+        // — the pointer for page content, Compose focus for our own surfaces —
+        // and exactly one may consume a key. Returning null hands directional
+        // keys and Center to Compose, which moves focus between the bar's
+        // controls; BACK still resolves here, because closing the chrome is this
+        // dispatcher's decision to make.
+        if (state.isChromeOpen && key != RemoteKey.Back) return null
+
         return when (key) {
             RemoteKey.Back -> dispatchBack(phase, state)
             RemoteKey.Center -> dispatchCenter(phase, state)

@@ -17,4 +17,5 @@ All notable changes to this project are recorded here. The format follows
 - User agent derived from the system's own, with the WebView markers removed and a TV token added.
 - `KeyDispatcher`, a pure state machine deciding what each of the six remote keys means, covered by unit tests.
 - Page rendering follows the system light and dark setting through algorithmic darkening.
+- Nav bar revealed by pressing UP with the pointer against the top edge, with an address field that tells an address from a search query, reload and home, and a load progress indicator.
 - Cursor: an accelerating pointer driven by the D-pad, with synthesised taps so every site's existing tap handling applies, and edge scrolling so a long page is readable without a seventh key.

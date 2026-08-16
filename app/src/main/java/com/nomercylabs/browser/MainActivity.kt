@@ -28,8 +28,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.withFrameMillis
+import com.nomercylabs.browser.browser.UrlOrSearch
 import com.nomercylabs.browser.browser.UserAgents
+import com.nomercylabs.browser.browser.PageState
 import com.nomercylabs.browser.browser.WebViewHost
+import androidx.compose.ui.Alignment
+import com.nomercylabs.browser.chrome.NavBar
 import com.nomercylabs.browser.cursor.CursorOverlay
 import com.nomercylabs.browser.cursor.CursorPosition
 import com.nomercylabs.browser.cursor.CursorState
@@ -49,6 +53,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var webView: WebView
     private val cursor = CursorState()
     private val gestures = KeyGestureTracker()
+    private var chromeOpen: Boolean by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +68,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TvTheme {
-                BrowserScreen(webView = webView, cursor = cursor)
+                BrowserScreen(
+                    webView = webView,
+                    cursor = cursor,
+                    page = host.state,
+                    chromeOpen = chromeOpen,
+                    onNavigate = { typed -> navigate(typed) },
+                    onBack = { host.goBack() },
+                    onReload = { host.reload() },
+                    onHome = { host.load(HOME_URL) },
+                )
             }
         }
     }
@@ -93,7 +107,21 @@ class MainActivity : ComponentActivity() {
         canGoBack = host.state.canGoBack,
         isPageAtTop = host.state.isAtTop,
         isCursorAtTopEdge = cursor.y <= EdgeScroller.EDGE_BAND_PX,
+        isChromeOpen = chromeOpen,
     )
+
+    /**
+     * Opening the chrome must release the pointer. A direction held at the
+     * moment the bar appears never receives its key-up through our path, so the
+     * cursor would keep travelling behind the chrome.
+     */
+    private fun showChrome(open: Boolean) {
+        chromeOpen = open
+        if (open) {
+            cursor.releaseAll()
+            gestures.clear()
+        }
+    }
 
     /**
      * All key input is taken here rather than in onKeyDown.
@@ -169,10 +197,30 @@ class MainActivity : ComponentActivity() {
         // The nav bar arrives in slice 8. Consumed rather than passed through,
         // so UP at the top of a page does not also drive the pointer upward
         // into an edge scroll it was never meant to trigger.
-        Command.RevealNavBar -> true
+        Command.RevealNavBar -> { showChrome(true); true }
+        Command.CloseChrome -> { showChrome(false); true }
 
         // Reachable only from states later slices introduce.
-        Command.CloseChrome, Command.ExitFullscreen, Command.ToggleInputMode -> false
+        Command.ExitFullscreen, Command.ToggleInputMode -> false
+    }
+
+    /**
+     * Resolves what was typed and acts on it. A blocked scheme closes the bar
+     * without navigating rather than silently doing nothing, so the refusal is
+     * at least visible as the bar dismissing.
+     */
+    private fun navigate(typed: String) {
+        when (val destination = UrlOrSearch.resolve(typed, UrlOrSearch.DUCKDUCKGO)) {
+            is UrlOrSearch.Destination.Url -> {
+                host.load(destination.url)
+                showChrome(false)
+            }
+            is UrlOrSearch.Destination.Search -> {
+                host.load(UrlOrSearch.searchUrl(destination.query, UrlOrSearch.DUCKDUCKGO))
+                showChrome(false)
+            }
+            UrlOrSearch.Destination.Blocked, UrlOrSearch.Destination.Nothing -> showChrome(false)
+        }
     }
 
     private fun remoteKeyOf(keyCode: Int): RemoteKey? = when (keyCode) {
@@ -194,7 +242,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun BrowserScreen(webView: WebView, cursor: CursorState) {
+private fun BrowserScreen(
+    webView: WebView,
+    cursor: CursorState,
+    page: PageState,
+    chromeOpen: Boolean,
+    onNavigate: (String) -> Unit,
+    onBack: () -> Unit,
+    onReload: () -> Unit,
+    onHome: () -> Unit,
+) {
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
 
@@ -241,6 +298,23 @@ private fun BrowserScreen(webView: WebView, cursor: CursorState) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
-        CursorOverlay(position = position, visible = true)
+
+        // Hidden while chrome is open, so it is never ambiguous on screen which
+        // of the two focus systems the D-pad is driving.
+        CursorOverlay(position = position, visible = !chromeOpen)
+
+        if (chromeOpen) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                NavBar(
+                    currentUrl = page.url,
+                    canGoBack = page.canGoBack,
+                    progress = page.progress,
+                    onNavigate = onNavigate,
+                    onBack = onBack,
+                    onReload = onReload,
+                    onHome = onHome,
+                )
+            }
+        }
     }
 }
