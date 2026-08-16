@@ -140,7 +140,27 @@ if ($Screenshot -and -not $NoLaunch) {
             $out = [System.IO.Path]::ChangeExtension($Screenshot, $null).TrimEnd('.') +
                    "-$safe" + [System.IO.Path]::GetExtension($Screenshot)
         }
-        & adb -s $serial exec-out screencap -p | Set-Content -Path $out -AsByteStream
+        # PowerShell's pipeline decodes process output as text, which corrupts
+        # PNG bytes. The raw stdout stream has to be copied directly.
+        $psi = [System.Diagnostics.ProcessStartInfo]::new('adb')
+        foreach ($arg in @('-s', $serial, 'exec-out', 'screencap', '-p')) {
+            [void] $psi.ArgumentList.Add($arg)
+        }
+        $psi.RedirectStandardOutput = $true
+        $psi.UseShellExecute = $false
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $outPath = if ([System.IO.Path]::IsPathRooted($out)) {
+            $out
+        } else {
+            Join-Path (Get-Location) $out
+        }
+        $file = [System.IO.File]::Create($outPath)
+        try {
+            $proc.StandardOutput.BaseStream.CopyTo($file)
+        } finally {
+            $file.Close()
+            $proc.WaitForExit()
+        }
         Write-Host "[$serial] screenshot $out"
     }
 }
