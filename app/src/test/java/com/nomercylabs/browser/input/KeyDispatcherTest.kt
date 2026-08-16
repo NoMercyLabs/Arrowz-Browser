@@ -53,32 +53,39 @@ class KeyDispatcherTest {
 
     // Acting on key-down would fire the command twice, once on the way down and
     // again on the way up.
+    // BACK and Center act on release. Directional keys are the exception:
+    // movement is a held state, so it must begin on press.
     @Test
-    fun keyDownProducesNothing() {
+    fun backAndCentreProduceNothingOnKeyDown() {
         assertNull(back(BrowserState(canGoBack = true), KeyPhase.Down))
         assertNull(KeyDispatcher.dispatch(RemoteKey.Center, KeyPhase.Down, BrowserState()))
-        assertNull(KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, BrowserState()))
     }
 
     @Test
     fun upRevealsTheNavBarOnlyAtTheTopOfThePage() {
         assertEquals(
             Command.RevealNavBar,
-            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Up, BrowserState(isPageAtTop = true)),
+            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, BrowserState(isPageAtTop = true, isCursorAtTopEdge = true)),
         )
         assertEquals(
-            Command.Move(RemoteKey.Up),
-            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Up, BrowserState(isPageAtTop = false)),
+            Command.StartMove(RemoteKey.Up),
+            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, BrowserState(isPageAtTop = false)),
         )
     }
 
     @Test
     fun upDoesNotRevealTheNavBarWhileChromeOrFullscreenIsShowing() {
-        val chromeOpen = BrowserState(isPageAtTop = true, isChromeOpen = true)
-        assertEquals(Command.Move(RemoteKey.Up), KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Up, chromeOpen))
+        val chromeOpen = BrowserState(isPageAtTop = true, isCursorAtTopEdge = true, isChromeOpen = true)
+        assertEquals(
+            Command.StartMove(RemoteKey.Up),
+            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, chromeOpen),
+        )
 
-        val fullscreen = BrowserState(isPageAtTop = true, isFullscreen = true)
-        assertEquals(Command.Move(RemoteKey.Up), KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Up, fullscreen))
+        val fullscreen = BrowserState(isPageAtTop = true, isCursorAtTopEdge = true, isFullscreen = true)
+        assertEquals(
+            Command.StartMove(RemoteKey.Up),
+            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Down, fullscreen),
+        )
     }
 
     @Test
@@ -95,7 +102,7 @@ class KeyDispatcherTest {
     // not ask for.
     @Test
     fun screenReaderModeConsumesNoDirectionalKeys() {
-        val state = BrowserState(mode = InputMode.ScreenReader, isPageAtTop = true)
+        val state = BrowserState(mode = InputMode.ScreenReader, isPageAtTop = true, isCursorAtTopEdge = true)
         listOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right, RemoteKey.Center)
             .forEach { key ->
                 assertNull(KeyDispatcher.dispatch(key, KeyPhase.Up, state))
@@ -111,11 +118,40 @@ class KeyDispatcherTest {
         assertEquals(Command.ExitApp, back(state.copy(canGoBack = false)))
     }
 
+    // Held movement: press starts it, release stops it. A single command on
+    // release would describe a jump, which is not what an accelerating pointer
+    // does.
     @Test
-    fun remainingDirectionsMoveOnKeyUp() {
-        listOf(RemoteKey.Down, RemoteKey.Left, RemoteKey.Right).forEach { key ->
-            assertEquals(Command.Move(key), KeyDispatcher.dispatch(key, KeyPhase.Up, BrowserState()))
-            assertNull(KeyDispatcher.dispatch(key, KeyPhase.Down, BrowserState()))
+    fun directionsStartMovingOnPressAndStopOnRelease() {
+        listOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right).forEach { key ->
+            val moving = BrowserState(isPageAtTop = false)
+            assertEquals(Command.StartMove(key), KeyDispatcher.dispatch(key, KeyPhase.Down, moving))
+            assertEquals(Command.StopMove(key), KeyDispatcher.dispatch(key, KeyPhase.Up, moving))
         }
+    }
+
+    // Releasing UP must still stop the pointer even when the press revealed the
+    // nav bar instead of starting movement, or a stuck direction is possible.
+    @Test
+    fun releasingUpAlwaysStopsMovement() {
+        assertEquals(
+            Command.StopMove(RemoteKey.Up),
+            KeyDispatcher.dispatch(RemoteKey.Up, KeyPhase.Up, BrowserState(isPageAtTop = true, isCursorAtTopEdge = true)),
+        )
+    }
+
+    // The defect this guards: on a freshly loaded page the pointer could not be
+    // moved upward at all, because every UP was read as a request for the nav
+    // bar.
+    @Test
+    fun upMovesThePointerWhenThePageIsAtTopButTheCursorIsNot() {
+        assertEquals(
+            Command.StartMove(RemoteKey.Up),
+            KeyDispatcher.dispatch(
+                RemoteKey.Up,
+                KeyPhase.Down,
+                BrowserState(isPageAtTop = true, isCursorAtTopEdge = false),
+            ),
+        )
     }
 }

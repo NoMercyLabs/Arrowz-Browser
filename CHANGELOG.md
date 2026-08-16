@@ -17,3 +17,4 @@ All notable changes to this project are recorded here. The format follows
 - User agent derived from the system's own, with the WebView markers removed and a TV token added.
 - `KeyDispatcher`, a pure state machine deciding what each of the six remote keys means, covered by unit tests.
 - Page rendering follows the system light and dark setting through algorithmic darkening.
+- Cursor: an accelerating pointer driven by the D-pad, with synthesised taps so every site's existing tap handling applies, and edge scrolling so a long page is readable without a seventh key.

@@ -28,8 +28,11 @@ object KeyDispatcher {
             RemoteKey.Back -> dispatchBack(phase, state)
             RemoteKey.Center -> dispatchCenter(phase, state)
             RemoteKey.Up -> dispatchUp(phase, state)
-            RemoteKey.Down, RemoteKey.Left, RemoteKey.Right ->
-                if (phase == KeyPhase.Up) Command.Move(key) else null
+            RemoteKey.Down, RemoteKey.Left, RemoteKey.Right -> when (phase) {
+                KeyPhase.Down -> Command.StartMove(key)
+                KeyPhase.Up -> Command.StopMove(key)
+                KeyPhase.LongPress -> null
+            }
         }
     }
 
@@ -64,12 +67,23 @@ object KeyDispatcher {
      * nothing, and a press that does nothing is the failure this interface is
      * built to avoid.
      */
-    private fun dispatchUp(phase: KeyPhase, state: BrowserState): Command? {
-        if (phase != KeyPhase.Up) return null
-        return if (state.isPageAtTop && !state.isChromeOpen && !state.isFullscreen) {
-            Command.RevealNavBar
-        } else {
-            Command.Move(RemoteKey.Up)
-        }
+    private fun dispatchUp(phase: KeyPhase, state: BrowserState): Command? = when (phase) {
+        // Decided on press, not release: the alternative is starting to move the
+        // pointer and then revealing the bar when the key comes up, which reads
+        // as the interface changing its mind.
+        // Both conditions matter. The page must have nothing left to scroll
+        // AND the pointer must already be against the top edge, so the reveal
+        // is a deliberate "one more UP" rather than the first UP on a page
+        // that simply has not been scrolled yet.
+        KeyPhase.Down ->
+            if (state.isPageAtTop && state.isCursorAtTopEdge &&
+                !state.isChromeOpen && !state.isFullscreen
+            ) {
+                Command.RevealNavBar
+            } else {
+                Command.StartMove(RemoteKey.Up)
+            }
+        KeyPhase.Up -> Command.StopMove(RemoteKey.Up)
+        KeyPhase.LongPress -> null
     }
 }

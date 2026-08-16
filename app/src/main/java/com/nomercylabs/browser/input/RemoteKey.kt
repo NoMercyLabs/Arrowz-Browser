@@ -56,6 +56,15 @@ data class BrowserState(
     val isChromeOpen: Boolean = false,
     val canGoBack: Boolean = false,
     val isPageAtTop: Boolean = false,
+    /**
+     * Whether the pointer itself has reached the top edge of the screen.
+     *
+     * Needed because "page is scrolled to the top" is not enough to mean the
+     * user asked for the nav bar. With a cursor, a page at scroll zero is the
+     * normal state of every freshly loaded page, so keying the reveal on that
+     * alone makes UP stop moving the pointer entirely.
+     */
+    val isCursorAtTopEdge: Boolean = false,
 )
 
 /**
@@ -70,6 +79,13 @@ sealed interface Command {
     data object ExitApp : Command
     data object RevealNavBar : Command
     data object ToggleInputMode : Command
-    data class Move(val key: RemoteKey) : Command
+
+    /**
+     * Movement is a held state rather than an event, because the cursor
+     * accelerates for as long as a direction is held. One command on release
+     * would describe a jump, which is not what the pointer does.
+     */
+    data class StartMove(val key: RemoteKey) : Command
+    data class StopMove(val key: RemoteKey) : Command
     data object Activate : Command
 }

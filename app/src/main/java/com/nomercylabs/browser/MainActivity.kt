@@ -5,22 +5,40 @@
 
 package com.nomercylabs.browser
 
+import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.nomercylabs.browser.browser.WebViewHost
+import androidx.compose.runtime.withFrameMillis
 import com.nomercylabs.browser.browser.UserAgents
+import com.nomercylabs.browser.browser.WebViewHost
+import com.nomercylabs.browser.cursor.CursorOverlay
+import com.nomercylabs.browser.cursor.CursorPosition
+import com.nomercylabs.browser.cursor.CursorState
+import com.nomercylabs.browser.cursor.EdgeScroller
+import com.nomercylabs.browser.cursor.TouchSynthesizer
 import com.nomercylabs.browser.input.BrowserState
 import com.nomercylabs.browser.input.Command
 import com.nomercylabs.browser.input.KeyDispatcher
+import com.nomercylabs.browser.input.KeyGestureTracker
 import com.nomercylabs.browser.input.KeyPhase
 import com.nomercylabs.browser.input.RemoteKey
 import com.nomercylabs.browser.ui.TvTheme
@@ -28,11 +46,14 @@ import com.nomercylabs.browser.ui.TvTheme
 class MainActivity : ComponentActivity() {
 
     private lateinit var host: WebViewHost
+    private lateinit var webView: WebView
+    private val cursor = CursorState()
+    private val gestures = KeyGestureTracker()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val webView = WebView(this)
+        webView = WebView(this)
         host = WebViewHost(webView)
         host.configure(
             userAgent = UserAgents.tenFoot(this, BuildConfig.VERSION_NAME),
@@ -42,7 +63,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TvTheme {
-                BrowserSurface(webView)
+                BrowserScreen(webView = webView, cursor = cursor)
             }
         }
     }
@@ -54,6 +75,16 @@ class MainActivity : ComponentActivity() {
         host.applyTheme(isSystemDark())
     }
 
+    /**
+     * Leaving the app with a direction still held would leave the pointer
+     * travelling when it comes back, because no key-up ever arrives.
+     */
+    override fun onPause() {
+        super.onPause()
+        cursor.releaseAll()
+        gestures.clear()
+    }
+
     private fun isSystemDark(): Boolean =
         resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
             Configuration.UI_MODE_NIGHT_YES
@@ -61,40 +92,44 @@ class MainActivity : ComponentActivity() {
     private fun browserState(): BrowserState = BrowserState(
         canGoBack = host.state.canGoBack,
         isPageAtTop = host.state.isAtTop,
+        isCursorAtTopEdge = cursor.y <= EdgeScroller.EDGE_BAND_PX,
     )
 
     /**
-     * BACK is tracked rather than handled here.
+     * All key input is taken here rather than in onKeyDown.
      *
-     * startTracking is what makes onKeyLongPress fire and what lets the ACTION_UP
-     * know whether the long press already consumed the press. This is also why
-     * the app does not opt into predictive back: OnBackInvokedCallback delivers
-     * an invocation with no duration, so a long press becomes indistinguishable
-     * from a short one and the menu becomes unreachable.
+     * A focused WebView consumes every directional key for its own focus
+     * walking, so the activity callbacks never run and the browser looks like
+     * it is ignoring the remote. dispatchKeyEvent sits above the view
+     * hierarchy, which is the only place a browser-wide input layer can work.
+     *
+     * The cost is that this path offers no long-press callback and no tracking
+     * flags, so KeyGestureTracker computes both.
      */
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            event.startTracking()
+    // androidx.core marks its own ComponentActivity.dispatchKeyEvent as
+    // RestrictTo, so overriding it correctly still trips lint. Overriding and
+    // delegating to super is the supported way to intercept keys above the view
+    // hierarchy, and there is no alternative entry point that sees them first.
+    @SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val key: RemoteKey = remoteKeyOf(event.keyCode) ?: return super.dispatchKeyEvent(event)
+
+        val phase: KeyPhase? = when (event.action) {
+            KeyEvent.ACTION_DOWN -> gestures.onDown(key, event.eventTime, event.repeatCount)
+            KeyEvent.ACTION_UP -> gestures.onUp(key)
+            else -> null
+        }
+
+        // A direction's release must always stop the pointer, even when the
+        // press produced something else, or the cursor keeps travelling.
+        if (phase == null) {
+            if (event.action == KeyEvent.ACTION_UP && key in DIRECTIONS) {
+                route(Command.StopMove(key))
+            }
             return true
         }
-        return remoteKeyOf(keyCode)?.let { key ->
-            handle(KeyDispatcher.dispatch(key, KeyPhase.Down, browserState()))
-        } ?: super.onKeyDown(keyCode, event)
-    }
 
-    override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
-        val key: RemoteKey = remoteKeyOf(keyCode) ?: return super.onKeyLongPress(keyCode, event)
-        return handle(KeyDispatcher.dispatch(key, KeyPhase.LongPress, browserState()))
-    }
-
-    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        val key: RemoteKey = remoteKeyOf(keyCode) ?: return super.onKeyUp(keyCode, event)
-
-        // Canceled means the long press already ran. Acting again would fire
-        // both meanings from one press.
-        if (event.isCanceled) return true
-
-        return handle(KeyDispatcher.dispatch(key, KeyPhase.Up, browserState()))
+        return handle(KeyDispatcher.dispatch(key, phase, browserState()))
     }
 
     /**
@@ -113,6 +148,10 @@ class MainActivity : ComponentActivity() {
         Command.GoBack -> { host.goBack(); true }
         Command.ExitApp -> { finish(); true }
 
+        is Command.StartMove -> { cursor.press(command.key, SystemClock.uptimeMillis()); true }
+        is Command.StopMove -> { cursor.release(command.key); true }
+        Command.Activate -> { TouchSynthesizer.tap(webView, cursor.position()); true }
+
         /**
          * The menu lands in slice 10. Until then this must still be CONSUMED,
          * because an unhandled long press is not cancelled by the framework and
@@ -127,14 +166,13 @@ class MainActivity : ComponentActivity() {
             KeyDispatcher.dispatch(RemoteKey.Back, KeyPhase.Up, browserState()),
         )
 
-        // Slice 3 attaches the cursor. Until then these belong to the WebView,
-        // whose own focus handling is the baseline the cursor has to beat.
-        is Command.Move, Command.Activate -> false
+        // The nav bar arrives in slice 8. Consumed rather than passed through,
+        // so UP at the top of a page does not also drive the pointer upward
+        // into an edge scroll it was never meant to trigger.
+        Command.RevealNavBar -> true
 
-        // Reachable only from states later slices introduce, so nothing can
-        // produce them yet and passing them through claims no key.
-        Command.RevealNavBar, Command.CloseChrome,
-        Command.ExitFullscreen, Command.ToggleInputMode -> false
+        // Reachable only from states later slices introduce.
+        Command.CloseChrome, Command.ExitFullscreen, Command.ToggleInputMode -> false
     }
 
     private fun remoteKeyOf(keyCode: Int): RemoteKey? = when (keyCode) {
@@ -150,13 +188,59 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val HOME_URL: String = "https://duckduckgo.com/"
         const val INPUT_TAG: String = "NmInput"
+        val DIRECTIONS: Set<RemoteKey> =
+            setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
     }
 }
 
 @Composable
-private fun BrowserSurface(webView: WebView) {
-    AndroidView(
-        factory = { webView },
-        modifier = Modifier.fillMaxSize(),
-    )
+private fun BrowserScreen(webView: WebView, cursor: CursorState) {
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+
+    val widthPx: Int = with(density) { configuration.screenWidthDp.dp.roundToPx() }
+    val heightPx: Int = with(density) { configuration.screenHeightDp.dp.roundToPx() }
+
+    var position: CursorPosition by remember { mutableStateOf(CursorPosition(0f, 0f)) }
+    var edgeHeldSinceMillis: Long by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(widthPx, heightPx) {
+        cursor.centreIn(widthPx, heightPx)
+        position = cursor.position()
+
+        var previousFrameMillis: Long = 0L
+        while (true) {
+            withFrameMillis { frameMillis ->
+                val frameDelta: Long =
+                    if (previousFrameMillis == 0L) 0L else frameMillis - previousFrameMillis
+                previousFrameMillis = frameMillis
+
+                if (cursor.isMoving) {
+                    cursor.advance(frameMillis, widthPx, heightPx)
+                    position = cursor.position()
+
+                    val scroll = EdgeScroller.scrollFor(
+                        position = position,
+                        width = widthPx,
+                        height = heightPx,
+                        heldMillis = if (edgeHeldSinceMillis == 0L) 0L else frameMillis - edgeHeldSinceMillis,
+                        frameMillis = frameDelta,
+                    )
+                    if (scroll.dx != 0 || scroll.dy != 0) {
+                        if (edgeHeldSinceMillis == 0L) edgeHeldSinceMillis = frameMillis
+                        webView.scrollBy(scroll.dx, scroll.dy)
+                    } else {
+                        edgeHeldSinceMillis = 0L
+                    }
+                } else {
+                    edgeHeldSinceMillis = 0L
+                }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+        CursorOverlay(position = position, visible = true)
+    }
 }
