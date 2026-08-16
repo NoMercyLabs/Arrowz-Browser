@@ -508,7 +508,12 @@ fun SiteTile(
  * dark enough that the letter on top stays legible.
  */
 private fun tileColours(origin: String, palette: Palette): List<Color> {
-    val hue: Float = ((origin.hashCode() % HUE_STEPS + HUE_STEPS) % HUE_STEPS).toFloat() / HUE_STEPS
+    // Confined to the cool arc rather than the whole wheel. A free hue puts a
+    // red tile beside a green one on a slate screen, and the grid stops looking
+    // like one interface; inside this band every site still gets its own
+    // recognisable colour and they all belong to the room.
+    val step: Int = (origin.hashCode() % HUE_STEPS + HUE_STEPS) % HUE_STEPS
+    val hue: Float = (HUE_START + step * HUE_SPAN / HUE_STEPS) / 360f
     val saturation: Float = if (palette.isLight) 0.45f else 0.38f
     // Dark enough in either palette to carry white letters, and never so dark
     // that the tile becomes one more black rectangle on a black screen.
@@ -520,6 +525,10 @@ private fun tileColours(origin: String, palette: Palette): List<Color> {
 }
 
 private const val HUE_STEPS: Int = 24
+
+/** Teal through to indigo: the arc the palette itself lives in. */
+private const val HUE_START: Float = 175f
+private const val HUE_SPAN: Float = 90f
 private const val INITIALS: Int = 2
 private const val GRADIENT_LIFT: Float = 0.08f
 private val TILE_LETTER_SPACING = 2.sp

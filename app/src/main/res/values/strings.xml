@@ -15,7 +15,7 @@
     <string name="menu_find">Find on page</string>
 
     <string name="nav_voice">Speak an address or search</string>
-    <string name="voice_unavailable">This television has no speech recogniser</string>
+    <string name="voice_unavailable">This TV has no speech recognizer</string>
 
     <string name="menu_bookmarks">Kept pages</string>
     <string name="menu_history">Recently visited</string>
@@ -44,14 +44,14 @@
     <string name="tabs_new">New tab</string>
     <string name="tabs_close">Close tab</string>
     <string name="tabs_untitled">Untitled page</string>
-    <string name="home_title">Favourites and most visited</string>
+    <string name="home_title">Favorites and most visited</string>
     <string name="home_empty">Open a page, then keep it here with the star in the address bar</string>
     <string name="nav_favourite_add">Keep this page</string>
     <string name="nav_favourite_remove">Stop keeping this page</string>
     <string name="menu_title">Menu</string>
     <string name="menu_home">Home screen</string>
     <string name="menu_theme">Appearance</string>
-    <string name="menu_theme_system">Follow the television</string>
+    <string name="menu_theme_system">Follow the TV</string>
     <string name="menu_theme_light">Light</string>
     <string name="menu_theme_dark">Dark</string>
 </resources>
