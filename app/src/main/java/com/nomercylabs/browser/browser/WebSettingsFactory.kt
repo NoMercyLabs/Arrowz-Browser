@@ -46,6 +46,9 @@ object WebSettingsFactory {
         settings.allowFileAccess = false
         settings.allowContentAccess = false
         settings.setGeolocationEnabled(false)
+        // Cleartext pages are allowed at the manifest level so http:// sites
+        // load, but an https page still may not pull http subresources: that is
+        // the case where the user believes they are on a secure page.
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
         // Autofill would store form data on a device several people share.

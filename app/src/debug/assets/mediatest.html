@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NoMercy Browser media test</title>
+<style>
+  body { background:#101014; color:#f2f2f5; font:28px/1.5 system-ui, sans-serif;
+         margin:0; padding:64px; }
+  .target { display:block; width:640px; height:280px; margin:32px 0;
+            background:#7c3aed; color:#fff; border:0; border-radius:16px;
+            font:600 32px system-ui, sans-serif; }
+  #log { color:#9a9aa6; font-size:22px; }
+</style>
+<h1>Media test page</h1>
+<button class="target" id="fs">Enter fullscreen</button>
+<p id="log">not fullscreen</p>
+<script>
+  const box = document.getElementById('fs');
+  const log = document.getElementById('log');
+  box.addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else box.requestFullscreen();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    log.textContent = document.fullscreenElement ? 'fullscreen' : 'not fullscreen';
+  });
+</script>

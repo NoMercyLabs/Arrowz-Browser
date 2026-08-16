@@ -47,6 +47,8 @@ WebView's defaults are conservative in ways that make embedded browsers feel bro
 
 It leaves off, deliberately: file access, content access, and geolocation. It forces `MIXED_CONTENT_NEVER_ALLOW`, and SSL errors are cancelled rather than proceeded through, with no override path in this slice.
 
+Cleartext pages are allowed. A browser that cannot open `http://` cannot reach a router admin page, a NAS or a printer, and refusing them makes the browser useless on a home network rather than safer. The half that matters is kept: an `https` page still cannot pull `http` subresources, because that is the case where someone believes they are on a secure page.
+
 ## Dark mode reaches the page
 
 `WebSettingsCompat.setAlgorithmicDarkeningAllowed` is enabled, and combined with `android:isLightTheme` from slice 1 it makes `prefers-color-scheme` report the system setting to the page. A site with a dark stylesheet then follows the television's theme, and a site without one gets Chromium's algorithmic darkening rather than a white rectangle in a dark room.

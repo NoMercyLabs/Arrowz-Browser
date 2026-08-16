@@ -49,7 +49,13 @@ class WebViewHost(private val webView: WebView) {
     val state: PageState = PageState()
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun configure(userAgent: String, isDarkTheme: Boolean) {
+    fun configure(
+        userAgent: String,
+        isDarkTheme: Boolean,
+        onEnterFullscreen: (android.view.View, android.webkit.WebChromeClient.CustomViewCallback) -> Unit,
+        onExitFullscreen: () -> Unit,
+        assetLoader: androidx.webkit.WebViewAssetLoader? = null,
+    ) {
         WebSettingsFactory.apply(webView, userAgent, isDarkTheme)
 
         webView.webViewClient = NmWebViewClient(
@@ -61,6 +67,7 @@ class WebViewHost(private val webView: WebView) {
             },
             onError = { error -> state.error = error },
             onRendererGone = { state.error = PageError(RENDERER_GONE, "The page stopped responding", state.url) },
+            assetLoader = assetLoader,
         )
 
         webView.webChromeClient = NmWebChromeClient(
@@ -69,6 +76,8 @@ class WebViewHost(private val webView: WebView) {
                 refreshScrollPosition()
             },
             onTitle = { title -> state.title = title },
+            onEnterFullscreen = onEnterFullscreen,
+            onExitFullscreen = onExitFullscreen,
         )
 
         webView.setOnScrollChangeListener { _, _, _, _, _ -> refreshScrollPosition() }

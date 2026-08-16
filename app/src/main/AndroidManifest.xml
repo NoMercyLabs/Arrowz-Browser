@@ -34,7 +34,16 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.NoMercyBrowser"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="true">
+        <!--
+            A browser that cannot open http:// cannot reach a router admin page,
+            a NAS, a printer, or the long tail of the old web. Cleartext is
+            therefore allowed for pages the user navigates to deliberately.
+
+            The security-relevant half is kept: mixedContentMode stays
+            NEVER_ALLOW, so an https page still cannot pull http subresources,
+            and certificate errors are still cancelled with no override.
+        -->
 
         <!-- WebView's Safe Browsing check is the component that reports browsing
              activity to Google. This app does not use it. -->

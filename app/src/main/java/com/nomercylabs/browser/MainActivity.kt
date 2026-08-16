@@ -30,6 +30,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.withFrameMillis
 import com.nomercylabs.browser.browser.UrlOrSearch
 import com.nomercylabs.browser.browser.UserAgents
+import androidx.webkit.WebViewAssetLoader
 import com.nomercylabs.browser.browser.PageState
 import com.nomercylabs.browser.browser.WebViewHost
 import androidx.compose.ui.Alignment
@@ -40,6 +41,7 @@ import com.nomercylabs.browser.cursor.CursorState
 import com.nomercylabs.browser.cursor.EdgeScroller
 import com.nomercylabs.browser.cursor.TouchSynthesizer
 import com.nomercylabs.browser.input.BrowserState
+import com.nomercylabs.browser.media.FullscreenController
 import com.nomercylabs.browser.input.Command
 import com.nomercylabs.browser.input.KeyDispatcher
 import com.nomercylabs.browser.input.KeyGestureTracker
@@ -54,15 +56,34 @@ class MainActivity : ComponentActivity() {
     private val cursor = CursorState()
     private val gestures = KeyGestureTracker()
     private var chromeOpen: Boolean by mutableStateOf(false)
+    private var fullscreenActive: Boolean by mutableStateOf(false)
+    private lateinit var fullscreen: FullscreenController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         webView = WebView(this)
         host = WebViewHost(webView)
+        fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
+
         host.configure(
             userAgent = UserAgents.tenFoot(this, BuildConfig.VERSION_NAME),
             isDarkTheme = isSystemDark(),
+            onEnterFullscreen = { view, callback ->
+                // A held direction never receives its key-up once the video view
+                // takes over, so the pointer would keep travelling behind it.
+                cursor.releaseAll()
+                gestures.clear()
+                fullscreen.enter(view, callback)
+            },
+            onExitFullscreen = { fullscreen.exit() },
+            assetLoader = if (BuildConfig.DEBUG) {
+                WebViewAssetLoader.Builder()
+                    .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+                    .build()
+            } else {
+                null
+            },
         )
         host.load(HOME_URL)
 
@@ -80,6 +101,14 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // The system shows the bars again on its own after certain
+        // interactions, and a video that grows letterboxing halfway through
+        // looks broken.
+        if (hasFocus) fullscreen.reapplyImmersiveIfActive()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -108,6 +137,7 @@ class MainActivity : ComponentActivity() {
         isPageAtTop = host.state.isAtTop,
         isCursorAtTopEdge = cursor.y <= EdgeScroller.EDGE_BAND_PX,
         isChromeOpen = chromeOpen,
+        isFullscreen = fullscreenActive,
     )
 
     /**
@@ -201,7 +231,8 @@ class MainActivity : ComponentActivity() {
         Command.CloseChrome -> { showChrome(false); true }
 
         // Reachable only from states later slices introduce.
-        Command.ExitFullscreen, Command.ToggleInputMode -> false
+        Command.ExitFullscreen -> { fullscreen.exit(); true }
+        Command.ToggleInputMode -> false
     }
 
     /**

@@ -12,7 +12,9 @@ import android.webkit.SslErrorHandler
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebResourceResponse
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
 
 data class PageError(val code: Int, val description: String, val url: String)
 
@@ -20,7 +22,20 @@ class NmWebViewClient(
     private val onPageStateChanged: (url: String, canGoBack: Boolean) -> Unit,
     private val onError: (PageError) -> Unit,
     private val onRendererGone: () -> Unit,
+    /**
+     * Debug builds only. Serves the bundled test page over a real https origin
+     * so media behaviour can be driven from a page we control, rather than from
+     * whichever third-party site happens to cooperate today.
+     *
+     * Null in release, where the interceptor does nothing at all.
+     */
+    private val assetLoader: WebViewAssetLoader? = null,
 ) : WebViewClient() {
+
+    override fun shouldInterceptRequest(
+        view: WebView,
+        request: WebResourceRequest,
+    ): WebResourceResponse? = assetLoader?.shouldInterceptRequest(request.url)
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         onPageStateChanged(url, view.canGoBack())
