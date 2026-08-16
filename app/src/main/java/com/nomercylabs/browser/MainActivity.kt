@@ -42,6 +42,7 @@ import com.nomercylabs.browser.cursor.EdgeScroller
 import com.nomercylabs.browser.cursor.TouchSynthesizer
 import com.nomercylabs.browser.input.BrowserState
 import com.nomercylabs.browser.media.FullscreenController
+import com.nomercylabs.browser.media.MediaSessionBridge
 import com.nomercylabs.browser.input.Command
 import com.nomercylabs.browser.input.KeyDispatcher
 import com.nomercylabs.browser.input.KeyGestureTracker
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
      */
     private var cursorMoving: Boolean by mutableStateOf(false)
     private lateinit var fullscreen: FullscreenController
+    private lateinit var mediaSession: MediaSessionBridge
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +75,22 @@ class MainActivity : ComponentActivity() {
         webView = WebView(this)
         host = WebViewHost(webView)
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
+
+        mediaSession = MediaSessionBridge(
+            context = this,
+            onAction = { action -> host.sendMediaAction(action) },
+            /**
+             * Audio focus is deliberately NOT requested here.
+             *
+             * Chromium already takes focus for media the page plays, through its
+             * own AudioFocusDelegate, and responds to loss by pausing. A second
+             * request from the same app makes that delegate see a loss and pause
+             * instantly: measured on the 8010, playback stopped 77ms in, every
+             * time. The platform behaviour we wanted is already present, one
+             * layer down.
+             */
+            onPlayingChanged = { playing -> playingChanged(playing) },
+        )
 
         host.configure(
             userAgent = UserAgents.tenFoot(this, BuildConfig.VERSION_NAME),
@@ -86,6 +104,7 @@ class MainActivity : ComponentActivity() {
                 fullscreen.enter(view, callback)
             },
             onExitFullscreen = { fullscreen.exit() },
+            scriptsAtDocumentStart = listOf(readAsset("mediasession-shim.js")),
             assetLoader = if (BuildConfig.DEBUG) {
                 WebViewAssetLoader.Builder()
                     .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
@@ -94,6 +113,7 @@ class MainActivity : ComponentActivity() {
                 null
             },
         )
+        host.addBridge("NoMercyMedia", mediaSession.pageInterface)
         host.load(HOME_URL)
 
         setContent {
@@ -132,6 +152,19 @@ class MainActivity : ComponentActivity() {
      * Leaving the app with a direction still held would leave the pointer
      * travelling when it comes back, because no key-up ever arrives.
      */
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaSession.destroy()
+    }
+
+    /** Kept as one place for later slices to hang background audio off. */
+    private fun playingChanged(playing: Boolean) {
+        if (BuildConfig.DEBUG) Log.v(INPUT_TAG, "playing=$playing")
+    }
+
+    private fun readAsset(name: String): String =
+        assets.open(name).bufferedReader().use { reader -> reader.readText() }
+
     override fun onPause() {
         super.onPause()
         cursor.releaseAll()
@@ -287,6 +320,7 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val HOME_URL: String = "https://duckduckgo.com/"
         const val INPUT_TAG: String = "NmInput"
+
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
     }

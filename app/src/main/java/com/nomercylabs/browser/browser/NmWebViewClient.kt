@@ -22,6 +22,7 @@ class NmWebViewClient(
     private val onPageStateChanged: (url: String, canGoBack: Boolean) -> Unit,
     private val onError: (PageError) -> Unit,
     private val onRendererGone: () -> Unit,
+    private val onInjectAtDocumentStart: (WebView) -> Unit = {},
     /**
      * Debug builds only. Serves the bundled test page over a real https origin
      * so media behaviour can be driven from a page we control, rather than from
@@ -38,6 +39,9 @@ class NmWebViewClient(
     ): WebResourceResponse? = assetLoader?.shouldInterceptRequest(request.url)
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+        // Re-injected on every navigation rather than once per WebView, so a
+        // single-page app that swaps its document does not lose the shim.
+        onInjectAtDocumentStart(view)
         onPageStateChanged(url, view.canGoBack())
     }
 

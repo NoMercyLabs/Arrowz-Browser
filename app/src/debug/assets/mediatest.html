@@ -24,3 +24,36 @@
     log.textContent = document.fullscreenElement ? 'fullscreen' : 'not fullscreen';
   });
 </script>
+<h2>Audio</h2>
+<button class="target" id="audio">Play a tone</button>
+<script>
+  // A real media element with real duration, generated in the page so the test
+  // needs no bundled media file.
+  function toneWav(seconds, freq) {
+    const rate = 8000, n = rate * seconds, buf = new ArrayBuffer(44 + n * 2);
+    const view = new DataView(buf);
+    const put = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+    put(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); put(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    put(36, 'data'); view.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) {
+      view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * freq * i / rate) * 6000, true);
+    }
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+  const el = document.createElement('audio');
+  el.src = toneWav(30, 220);
+  el.controls = true;
+  document.body.appendChild(el);
+  document.getElementById('audio').addEventListener('click', () => {
+    if (el.paused) el.play(); else el.pause();
+  });
+  if (navigator.mediaSession) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'NoMercy test tone',
+      artist: 'Media test page'
+    });
+  }
+</script>

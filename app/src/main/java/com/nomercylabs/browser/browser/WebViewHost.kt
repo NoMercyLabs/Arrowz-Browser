@@ -55,6 +55,7 @@ class WebViewHost(private val webView: WebView) {
         onEnterFullscreen: (android.view.View, android.webkit.WebChromeClient.CustomViewCallback) -> Unit,
         onExitFullscreen: () -> Unit,
         assetLoader: androidx.webkit.WebViewAssetLoader? = null,
+        scriptsAtDocumentStart: List<String> = emptyList(),
     ) {
         WebSettingsFactory.apply(webView, userAgent, isDarkTheme)
 
@@ -68,6 +69,9 @@ class WebViewHost(private val webView: WebView) {
             onError = { error -> state.error = error },
             onRendererGone = { state.error = PageError(RENDERER_GONE, "The page stopped responding", state.url) },
             assetLoader = assetLoader,
+            onInjectAtDocumentStart = { view ->
+                scriptsAtDocumentStart.forEach { script -> view.evaluateJavascript(script, null) }
+            },
         )
 
         webView.webChromeClient = NmWebChromeClient(
@@ -84,6 +88,25 @@ class WebViewHost(private val webView: WebView) {
     }
 
     fun load(url: String) = webView.loadUrl(url)
+
+    /** Ducking without pausing: the page keeps playing, quietly. */
+    fun setVolume(volume: Float) = webView.evaluateJavascript(
+        "document.querySelectorAll('video,audio').forEach(function(m){m.volume=$volume})",
+        null,
+    )
+
+    /**
+     * The concrete bridge objects annotate their methods with
+     * @JavascriptInterface and proguard-rules.pro keeps them. Lint cannot see
+     * that through an Any parameter, and its stated concern is visibility on
+     * API 17, which is twelve releases below this app's minimum.
+     */
+    @SuppressLint("JavascriptInterface")
+    fun addBridge(name: String, bridge: Any) = webView.addJavascriptInterface(bridge, name)
+
+    /** Calls into the injected shim. Returns nothing; the page reports back. */
+    fun sendMediaAction(action: String) =
+        webView.evaluateJavascript("window.__nmMediaAction && window.__nmMediaAction('$action')", null)
 
     fun goBack() {
         if (webView.canGoBack()) webView.goBack()
