@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -54,6 +55,10 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var host: WebViewHost
     private lateinit var webView: WebView
+
+    /** Bumped when the WebView instance is replaced after a renderer death, so
+     *  the composition swaps in the new view rather than holding the dead one. */
+    private var webViewGeneration: Int by mutableStateOf(0)
     private val cursor = CursorState()
     private val gestures = KeyGestureTracker()
     private var chromeOpen: Boolean by mutableStateOf(false)
@@ -72,7 +77,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        webView = WebView(this)
+        webView = buildWebView()
         host = WebViewHost(webView)
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
 
@@ -92,6 +97,50 @@ class MainActivity : ComponentActivity() {
             onPlayingChanged = { playing -> playingChanged(playing) },
         )
 
+        configureHost(webView)
+
+        host.onRebuildRequired { savedState, url ->
+            // The dead view cannot be reused: its process is gone and touching
+            // it throws. A fresh one is adopted, configured identically, and
+            // restored from the state captured before the process died.
+            val replacement: WebView = buildWebView()
+            webView = replacement
+            host.adopt(replacement)
+            configureHost(replacement)
+
+            if (replacement.restoreState(savedState) == null && url.isNotEmpty()) {
+                // No usable history, so at least return to where they were.
+                replacement.loadUrl(url)
+            }
+            webViewGeneration++
+            replacement
+        }
+
+        host.load(HOME_URL)
+
+        setContent {
+            TvTheme {
+                BrowserScreen(
+                    webView = webView,
+                    generation = webViewGeneration,
+                    cursor = cursor,
+                    page = host.state,
+                    chromeOpen = chromeOpen,
+                    cursorMoving = cursorMoving,
+                    onNavigate = { typed -> navigate(typed) },
+                    onBack = { host.goBack() },
+                    onReload = { host.reload() },
+                    onHome = { host.load(HOME_URL) },
+                )
+            }
+        }
+    }
+
+    private fun buildWebView(): WebView = WebView(this)
+
+    /** [target] is the view the host has already adopted; passed for clarity at
+     *  the call sites rather than for lookup. */
+    private fun configureHost(target: WebView) {
         host.configure(
             userAgent = UserAgents.tenFoot(this, BuildConfig.VERSION_NAME),
             isDarkTheme = isSystemDark(),
@@ -114,23 +163,6 @@ class MainActivity : ComponentActivity() {
             },
         )
         host.addBridge("NoMercyMedia", mediaSession.pageInterface)
-        host.load(HOME_URL)
-
-        setContent {
-            TvTheme {
-                BrowserScreen(
-                    webView = webView,
-                    cursor = cursor,
-                    page = host.state,
-                    chromeOpen = chromeOpen,
-                    cursorMoving = cursorMoving,
-                    onNavigate = { typed -> navigate(typed) },
-                    onBack = { host.goBack() },
-                    onReload = { host.reload() },
-                    onHome = { host.load(HOME_URL) },
-                )
-            }
-        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -329,6 +361,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun BrowserScreen(
     webView: WebView,
+    generation: Int,
     cursor: CursorState,
     page: PageState,
     chromeOpen: Boolean,
@@ -390,7 +423,11 @@ private fun BrowserScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+        // Keyed on the generation so a rebuilt WebView actually replaces the
+        // dead one in the hierarchy; without the key the old instance is kept.
+        key(generation) {
+            AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+        }
 
         // Hidden while chrome is open, so it is never ambiguous on screen which
         // of the two focus systems the D-pad is driving.

@@ -57,3 +57,14 @@
     });
   }
 </script>
+<h2>Renderer</h2>
+<button class="target" id="crash">Exhaust the renderer</button>
+<script>
+  // Debug fixture. Allocates until the renderer is killed, which is the same
+  // condition memory pressure produces on a 2GB box, and the only way to
+  // exercise onRenderProcessGone without root.
+  document.getElementById('crash').addEventListener('click', () => {
+    const hog = [];
+    for (;;) hog.push(new Array(2e6).fill(Math.random()));
+  });
+</script>

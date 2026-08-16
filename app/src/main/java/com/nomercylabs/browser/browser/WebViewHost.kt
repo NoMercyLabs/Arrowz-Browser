@@ -6,6 +6,7 @@
 package com.nomercylabs.browser.browser
 
 import android.annotation.SuppressLint
+import android.os.Bundle
 import android.webkit.WebView
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,9 +45,26 @@ class PageState {
  * Activity so background audio survives, and a WebView owned by a composition
  * cannot do that.
  */
-class WebViewHost(private val webView: WebView) {
+class WebViewHost(private var webView: WebView) {
 
     val state: PageState = PageState()
+
+    /**
+     * The most recent saved state, captured continuously rather than when a tab
+     * is suspended.
+     *
+     * A renderer killed under memory pressure gives no warning, so a
+     * suspend-time capture is worthless to exactly the case it exists for.
+     * Captured on every navigation, which is when history changes and therefore
+     * when there is something new worth keeping.
+     */
+    private var savedState: Bundle = Bundle()
+
+    /** Set when the last WebView died, so recovery reloads rather than restores
+     *  into a view that never had the page. */
+    private var lastUrl: String = ""
+
+    private var rebuild: ((Bundle, String) -> WebView)? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(
@@ -64,10 +82,12 @@ class WebViewHost(private val webView: WebView) {
                 state.url = url
                 state.canGoBack = canGoBack
                 state.error = null
+                lastUrl = url
+                captureState()
                 refreshScrollPosition()
             },
             onError = { error -> state.error = error },
-            onRendererGone = { state.error = PageError(RENDERER_GONE, "The page stopped responding", state.url) },
+            onRendererGone = { recoverFromDeadRenderer() },
             assetLoader = assetLoader,
             onInjectAtDocumentStart = { view ->
                 scriptsAtDocumentStart.forEach { script -> view.evaluateJavascript(script, null) }
@@ -87,7 +107,51 @@ class WebViewHost(private val webView: WebView) {
         webView.setOnScrollChangeListener { _, _, _, _, _ -> refreshScrollPosition() }
     }
 
-    fun load(url: String) = webView.loadUrl(url)
+    fun load(url: String) {
+        lastUrl = url
+        webView.loadUrl(url)
+    }
+
+    /**
+     * Supplies the factory used to replace a WebView whose renderer died. The
+     * old view cannot be reused: it is permanently dead once its process is
+     * gone, and touching it throws.
+     */
+    fun onRebuildRequired(factory: (savedState: Bundle, url: String) -> WebView) {
+        rebuild = factory
+    }
+
+    /**
+     * Points the host at a replacement view. Called before configure() during
+     * recovery, because configure() acts on the adopted view and configuring
+     * the dead one would throw.
+     */
+    fun adopt(replacement: WebView) {
+        webView = replacement
+    }
+
+    fun captureState() {
+        val bundle = Bundle()
+        // Returns null when there is nothing worth saving, in which case the
+        // previous capture is still the better one.
+        if (webView.saveState(bundle) != null) savedState = bundle
+    }
+
+    /**
+     * Slice 2 returned true from onRenderProcessGone so the app survived. That
+     * is not recovery: the tab was left showing a dead view. This rebuilds it.
+     *
+     * On a 2GB box with multiprocess WebView this is routine rather than
+     * exceptional, so it is a normal path, not an error path.
+     */
+    private fun recoverFromDeadRenderer() {
+        val factory = rebuild
+        if (factory == null) {
+            state.error = PageError(RENDERER_GONE, "The page stopped responding", state.url)
+            return
+        }
+        factory(savedState, lastUrl)
+    }
 
     /** Ducking without pausing: the page keeps playing, quietly. */
     fun setVolume(volume: Float) = webView.evaluateJavascript(

@@ -37,6 +37,12 @@ Slice 2 already returns `true` from that callback so the app survives. This slic
 4. **A thumbnail captured from a protected surface**, which is black. Those fall back to the page's poster or favicon.
 5. **Eviction that never happens** because the only signal watched is one the device never sends.
 
+## Provoking a renderer death without root
+
+`adb shell kill` cannot touch another app's process, so the sandboxed renderer cannot be killed from the outside on a normal device. The debug test page therefore carries an "exhaust the renderer" button that allocates until the process dies, which reproduces the real condition rather than simulating it.
+
+It reproduced it thoroughly: `aw_browser_terminator` reported the renderer crash, and the low-memory killer took down three unrelated apps on the device in the process. Our app survived with the same pid, stayed foreground, and rebuilt the tab from the state captured before the crash.
+
 ## Acceptance
 
 Unit tests for the eviction order, including both exemptions and the case where every tab is exempt.
