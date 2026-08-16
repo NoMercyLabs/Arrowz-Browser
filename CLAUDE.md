@@ -20,9 +20,15 @@ AGP 9 provides Kotlin support itself. Applying `org.jetbrains.kotlin.android` is
 
 ## Dev hardware
 
-Nokia Streaming Box 8000 at `192.168.2.80`. Android 14, API 34, `armeabi-v7a` only, roughly 2GB RAM, 1920x1080 at 320dpi, WebView multiprocess, hardware Widevine present.
+**Primary: Nokia Streaming Box 8010 at `192.168.2.21`** (living room). Android 14, API 34, `armeabi-v7a` only, 3.5GB RAM, 4K panel with the surface overridden to 1920x1080 at 320dpi, WebView multiprocess, hardware Widevine present.
 
-Drive it with six keycodes only: `19 20 21 22` directions, `23` OK, `4` BACK. Do not drive the launcher blind with keypresses, because it is easy to land in the Play Store on an install page.
+**Memory pressure device: Nokia Streaming Box 8000 at `192.168.2.80`** (bedroom). Same platform and the same 960x540dp canvas, but 2GB RAM against the 8010's 3.5GB, and a stereo-only audio HAL with passthrough disabled.
+
+The split matters. Everyday work happens on the 8010. Tab eviction, `onRenderProcessGone` recovery and audio handling are proven on the 8000, because the box with more headroom may never make those paths fire at all. A green run on the 8010 is not evidence about memory pressure.
+
+Drive with six keycodes only: `19 20 21 22` directions, `23` OK, `4` BACK. Do not drive the launcher blind with keypresses, because it is easy to land in the Play Store on an install page.
+
+Deploy with `./deploy.sh` or `./deploy.ps1`, never a bare `adb install`.
 
 ## Traps already paid for
 

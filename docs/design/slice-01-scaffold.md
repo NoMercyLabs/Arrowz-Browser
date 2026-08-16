@@ -56,7 +56,7 @@ The acceptance check below is written to catch 1, 4 and 5 on hardware rather tha
 
 ## Acceptance
 
-Mechanical, on the dev box at `192.168.2.80`:
+Mechanical, on the dev box at `192.168.2.21`:
 
 1. `gradlew assembleDebug` succeeds offline.
 2. `adb install` succeeds.
