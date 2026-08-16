@@ -7,10 +7,12 @@ package com.nomercylabs.browser.browser
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.nomercylabs.browser.tabs.TabPage
 
 /**
  * The live facts about the page that a keypress decision needs, plus the ones
@@ -39,15 +41,28 @@ class PageState {
 }
 
 /**
- * Owns the WebView and turns dispatcher commands into calls on it.
+ * Owns one tab's WebView and turns commands into calls on it.
  *
- * Deliberately not a composable. Slice 7 gives tabs a lifetime that outlives the
- * Activity so background audio survives, and a WebView owned by a composition
- * cannot do that.
+ * Deliberately not a composable: a tab outlives the composition that draws it,
+ * because background audio has to survive switching to another tab.
  */
-class WebViewHost(private var webView: WebView) {
+class WebViewHost(initialView: WebView) : TabPage {
 
     val state: PageState = PageState()
+
+    /**
+     * Null while the tab is suspended, and between a renderer death and the
+     * rebuild. Nothing draws a tab in that window, so every call below is a
+     * no-op rather than a crash.
+     */
+    var view: WebView? = initialView
+        private set
+
+    override var isSuspended: Boolean by mutableStateOf(false)
+        private set
+
+    override val pageUrl: String get() = state.url
+    override val pageTitle: String get() = state.title
 
     /**
      * The most recent saved state, captured continuously rather than when a tab
@@ -60,11 +75,11 @@ class WebViewHost(private var webView: WebView) {
      */
     private var savedState: Bundle = Bundle()
 
-    /** Set when the last WebView died, so recovery reloads rather than restores
-     *  into a view that never had the page. */
+    /** Where to return to when the saved state carries no usable history. */
     private var lastUrl: String = ""
 
     private var rebuild: ((Bundle, String) -> WebView)? = null
+    private var rendererDeathListener: (() -> Unit)? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(
@@ -75,9 +90,10 @@ class WebViewHost(private var webView: WebView) {
         assetLoader: androidx.webkit.WebViewAssetLoader? = null,
         scriptsAtDocumentStart: List<String> = emptyList(),
     ) {
-        WebSettingsFactory.apply(webView, userAgent, isDarkTheme)
+        val target: WebView = view ?: return
+        WebSettingsFactory.apply(target, userAgent, isDarkTheme)
 
-        webView.webViewClient = NmWebViewClient(
+        target.webViewClient = NmWebViewClient(
             onPageStateChanged = { url, canGoBack ->
                 state.url = url
                 state.canGoBack = canGoBack
@@ -89,12 +105,12 @@ class WebViewHost(private var webView: WebView) {
             onError = { error -> state.error = error },
             onRendererGone = { recoverFromDeadRenderer() },
             assetLoader = assetLoader,
-            onInjectAtDocumentStart = { view ->
-                scriptsAtDocumentStart.forEach { script -> view.evaluateJavascript(script, null) }
+            onInjectAtDocumentStart = { injected ->
+                scriptsAtDocumentStart.forEach { script -> injected.evaluateJavascript(script, null) }
             },
         )
 
-        webView.webChromeClient = NmWebChromeClient(
+        target.webChromeClient = NmWebChromeClient(
             onProgress = { progress ->
                 state.progress = progress
                 refreshScrollPosition()
@@ -104,37 +120,69 @@ class WebViewHost(private var webView: WebView) {
             onExitFullscreen = onExitFullscreen,
         )
 
-        webView.setOnScrollChangeListener { _, _, _, _, _ -> refreshScrollPosition() }
+        target.setOnScrollChangeListener { _, _, _, _, _ -> refreshScrollPosition() }
     }
 
     fun load(url: String) {
         lastUrl = url
-        webView.loadUrl(url)
+        state.url = url
+        view?.loadUrl(url)
     }
 
     /**
-     * Supplies the factory used to replace a WebView whose renderer died. The
-     * old view cannot be reused: it is permanently dead once its process is
-     * gone, and touching it throws.
+     * Supplies the factory used to build this tab's WebView again. Called for
+     * both a renderer death and a resume from suspension, which end in the same
+     * state: no live view, a saved bundle, a URL.
      */
     fun onRebuildRequired(factory: (savedState: Bundle, url: String) -> WebView) {
         rebuild = factory
     }
 
     /**
-     * Points the host at a replacement view. Called before configure() during
-     * recovery, because configure() acts on the adopted view and configuring
-     * the dead one would throw.
+     * A renderer death is evidence the system is reclaiming memory, so the
+     * registry treats it as a pressure signal rather than only as an error.
+     */
+    fun onRendererDeath(listener: () -> Unit) {
+        rendererDeathListener = listener
+    }
+
+    /**
+     * Points the host at a replacement view. Called before configure() during a
+     * rebuild, because configure() acts on the adopted view and configuring the
+     * dead one would throw.
      */
     fun adopt(replacement: WebView) {
-        webView = replacement
+        view = replacement
+        isSuspended = false
+    }
+
+    /**
+     * Releases the renderer, keeping enough to come back. The view is detached
+     * before it is destroyed: destroying one still in a hierarchy takes the
+     * hierarchy with it.
+     */
+    override fun suspendPage() {
+        val current: WebView = view ?: return
+        captureState()
+        current.stopLoading()
+        (current.parent as? ViewGroup)?.removeView(current)
+        current.destroy()
+        view = null
+        isSuspended = true
+    }
+
+    /** Rebuilds through the same path a dead renderer uses. */
+    override fun resumePage() {
+        if (!isSuspended) return
+        rebuild?.invoke(savedState, lastUrl)
     }
 
     fun captureState() {
+        val current: WebView = view ?: return
         val bundle = Bundle()
         // Returns null when there is nothing worth saving, in which case the
         // previous capture is still the better one.
-        if (webView.saveState(bundle) != null) savedState = bundle
+        if (current.saveState(bundle) != null) savedState = bundle
     }
 
     /**
@@ -145,8 +193,12 @@ class WebViewHost(private var webView: WebView) {
      * exceptional, so it is a normal path, not an error path.
      */
     private fun recoverFromDeadRenderer() {
+        view = null
+        rendererDeathListener?.invoke()
+
         val factory = rebuild
         if (factory == null) {
+            isSuspended = true
             state.error = PageError(RENDERER_GONE, "The page stopped responding", state.url)
             return
         }
@@ -154,7 +206,7 @@ class WebViewHost(private var webView: WebView) {
     }
 
     /** Ducking without pausing: the page keeps playing, quietly. */
-    fun setVolume(volume: Float) = webView.evaluateJavascript(
+    fun setVolume(volume: Float) = view?.evaluateJavascript(
         "document.querySelectorAll('video,audio').forEach(function(m){m.volume=$volume})",
         null,
     )
@@ -166,23 +218,39 @@ class WebViewHost(private var webView: WebView) {
      * API 17, which is twelve releases below this app's minimum.
      */
     @SuppressLint("JavascriptInterface")
-    fun addBridge(name: String, bridge: Any) = webView.addJavascriptInterface(bridge, name)
-
-    /** Calls into the injected shim. Returns nothing; the page reports back. */
-    fun sendMediaAction(action: String) =
-        webView.evaluateJavascript("window.__nmMediaAction && window.__nmMediaAction('$action')", null)
-
-    fun goBack() {
-        if (webView.canGoBack()) webView.goBack()
+    fun addBridge(name: String, bridge: Any) {
+        view?.addJavascriptInterface(bridge, name)
     }
 
-    fun reload() = webView.reload()
+    /** Calls into the injected shim. Returns nothing; the page reports back. */
+    fun sendMediaAction(action: String) {
+        view?.evaluateJavascript("window.__nmMediaAction && window.__nmMediaAction('$action')", null)
+    }
 
-    fun applyTheme(isDarkTheme: Boolean) =
-        WebSettingsFactory.applyDarkening(webView.settings, isDarkTheme)
+    fun goBack() {
+        val current: WebView = view ?: return
+        if (current.canGoBack()) current.goBack()
+    }
+
+    fun reload() {
+        view?.reload()
+    }
+
+    fun applyTheme(isDarkTheme: Boolean) {
+        val current: WebView = view ?: return
+        WebSettingsFactory.applyDarkening(current.settings, isDarkTheme)
+    }
+
+    /** Nothing comes back from here: the tab is being thrown away. */
+    override fun destroyPage() {
+        rebuild = null
+        rendererDeathListener = null
+        suspendPage()
+    }
 
     private fun refreshScrollPosition() {
-        state.isAtTop = webView.scrollY <= AT_TOP_THRESHOLD_PX
+        val current: WebView = view ?: return
+        state.isAtTop = current.scrollY <= AT_TOP_THRESHOLD_PX
     }
 
     private companion object {

@@ -33,35 +33,54 @@ data class NowPlaying(
  */
 class MediaSessionBridge(
     context: Context,
-    private val onAction: (String) -> Unit,
+    private val onAction: (tabId: String, action: String) -> Unit,
     private val onPlayingChanged: (Boolean) -> Unit,
 ) {
 
     private val handler = Handler(Looper.getMainLooper())
 
+    /**
+     * Which tab the published session belongs to.
+     *
+     * One session is published for the app, never one per tab: two sessions
+     * from one process make the system choose, and its choice is not reliably
+     * the one the viewer is listening to. That makes ownership something the
+     * bridge has to record, so a transport key reaches the tab that is playing
+     * rather than the tab that happens to be on screen.
+     */
+    var owningTabId: String = ""
+        private set
+
     // The platform API rather than MediaSessionCompat: minSdk is 28, so the
     // compat layer would be a dependency that buys nothing.
     private val session = MediaSession(context, SESSION_TAG).apply {
         setCallback(object : MediaSession.Callback() {
-            override fun onPlay() = onAction("play")
-            override fun onPause() = onAction("pause")
-            override fun onStop() = onAction("stop")
-            override fun onSkipToNext() = onAction("nexttrack")
-            override fun onSkipToPrevious() = onAction("previoustrack")
-            override fun onFastForward() = onAction("seekforward")
-            override fun onRewind() = onAction("seekbackward")
+            override fun onPlay() = dispatch("play")
+            override fun onPause() = dispatch("pause")
+            override fun onStop() = dispatch("stop")
+            override fun onSkipToNext() = dispatch("nexttrack")
+            override fun onSkipToPrevious() = dispatch("previoustrack")
+            override fun onFastForward() = dispatch("seekforward")
+            override fun onRewind() = dispatch("seekbackward")
         })
     }
 
     var nowPlaying: NowPlaying = NowPlaying()
         private set
 
+    private fun dispatch(action: String) {
+        if (owningTabId.isNotEmpty()) onAction(owningTabId, action)
+    }
+
+    /** What the eviction policy reads for its media exemption. */
+    fun isPlaying(tabId: String): Boolean = nowPlaying.isPlaying && owningTabId == tabId
+
     /**
-     * The object the page talks to. Its surface is deliberately reporting only:
-     * a page may describe what it is playing, and may not ask the app to do
-     * anything.
+     * The object the page talks to, one per tab so every report carries its
+     * origin. Its surface is deliberately reporting only: a page may describe
+     * what it is playing, and may not ask the app to do anything.
      */
-    inner class PageInterface {
+    inner class PageInterface(private val tabId: String) {
 
         @JavascriptInterface
         fun onPlaybackState(
@@ -83,20 +102,31 @@ class MediaSessionBridge(
             )
             // The bridge is called from the WebView's JavaScript thread, and a
             // MediaSession must be touched from the main thread.
-            handler.post { publish(state, actions) }
+            handler.post { publish(tabId, state, actions) }
         }
 
+        /**
+         * Only the owning tab may clear the session. A second tab loading a page
+         * that stops its own media would otherwise wipe the now-playing state of
+         * the tab the viewer is actually listening to.
+         */
         @JavascriptInterface
         fun onPlaybackStopped() {
-            handler.post { release() }
+            handler.post { if (tabId == owningTabId) release() }
         }
     }
 
-    val pageInterface: PageInterface = PageInterface()
+    fun pageInterfaceFor(tabId: String): PageInterface = PageInterface(tabId)
 
-    private fun publish(state: NowPlaying, actions: String) {
+    /** Called when a tab is closed, so its session does not outlive it. */
+    fun releaseIfOwnedBy(tabId: String) {
+        if (tabId == owningTabId) release()
+    }
+
+    private fun publish(tabId: String, state: NowPlaying, actions: String) {
         val wasPlaying: Boolean = nowPlaying.isPlaying
         nowPlaying = state
+        owningTabId = tabId
 
         session.setMetadata(
             MediaMetadata.Builder()
@@ -148,6 +178,7 @@ class MediaSessionBridge(
     fun release() {
         if (nowPlaying.isPlaying) onPlayingChanged(false)
         nowPlaying = NowPlaying()
+        owningTabId = ""
         session.isActive = false
     }
 

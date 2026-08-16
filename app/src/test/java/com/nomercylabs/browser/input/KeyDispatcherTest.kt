@@ -20,6 +20,21 @@ class KeyDispatcherTest {
         assertEquals(Command.ExitFullscreen, back(state))
     }
 
+    // Measured on the 8010: with the keyboard up, one BACK that closed the bar
+    // threw away what was being typed, because the IME and the bar are two
+    // surfaces and BACK only ever dismissed the outer one.
+    @Test
+    fun backClosesTheKeyboardBeforeTheBarThatRaisedIt() {
+        val state = BrowserState(isChromeOpen = true, isEditingText = true, canGoBack = true)
+        assertEquals(Command.StopEditing, back(state))
+    }
+
+    @Test
+    fun backExitsFullscreenEvenWhileEditing() {
+        val state = BrowserState(isFullscreen = true, isEditingText = true, isChromeOpen = true)
+        assertEquals(Command.ExitFullscreen, back(state))
+    }
+
     @Test
     fun backClosesChromeBeforeWalkingHistory() {
         val state = BrowserState(isChromeOpen = true, canGoBack = true)

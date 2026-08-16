@@ -6,4 +6,9 @@
     <string name="nav_home">Go to home page</string>
     <string name="nav_placeholder">Search or enter address</string>
     <string name="nav_field_description">Address and search field</string>
+    <string name="nav_tabs">Open tabs</string>
+    <string name="tabs_title">Tabs (%1$d)</string>
+    <string name="tabs_new">New tab</string>
+    <string name="tabs_close">Close tab</string>
+    <string name="tabs_untitled">Untitled page</string>
 </resources>

@@ -65,6 +65,14 @@ data class BrowserState(
      * alone makes UP stop moving the pointer entirely.
      */
     val isCursorAtTopEdge: Boolean = false,
+    /**
+     * Whether a text field currently has the system keyboard open.
+     *
+     * The leanback IME consumes every directional key while it is up, so this is
+     * not a detail of the chrome: it is a distinct state in which BACK must
+     * close the keyboard rather than the surface behind it.
+     */
+    val isEditingText: Boolean = false,
 )
 
 /**
@@ -74,6 +82,7 @@ data class BrowserState(
 sealed interface Command {
     data object ExitFullscreen : Command
     data object CloseChrome : Command
+    data object StopEditing : Command
     data object OpenMenu : Command
     data object GoBack : Command
     data object ExitApp : Command

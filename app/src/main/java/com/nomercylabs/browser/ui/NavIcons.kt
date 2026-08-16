@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -73,6 +72,37 @@ object NavIcons {
         )
     }
 
+    /** Two sheets, offset. The count rides beside it rather than inside it: a
+     *  number drawn into a 24dp box is unreadable across a room. */
+    @Composable
+    fun Tabs(tint: Color) = Glyph(tint) { stroke, size ->
+        drawRect(
+            color = tint,
+            topLeft = Offset(size * 0.30f, size * 0.16f),
+            size = androidx.compose.ui.geometry.Size(size * 0.54f, size * 0.48f),
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+        drawRect(
+            color = tint,
+            topLeft = Offset(size * 0.16f, size * 0.36f),
+            size = androidx.compose.ui.geometry.Size(size * 0.54f, size * 0.48f),
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+    }
+
+    @Composable
+    fun Plus(tint: Color) = Glyph(tint) { stroke, size ->
+        val mid: Float = size / 2f
+        drawLine(tint, Offset(size * 0.20f, mid), Offset(size * 0.80f, mid), stroke, StrokeCap.Round)
+        drawLine(tint, Offset(mid, size * 0.20f), Offset(mid, size * 0.80f), stroke, StrokeCap.Round)
+    }
+
+    @Composable
+    fun Close(tint: Color) = Glyph(tint) { stroke, size ->
+        drawLine(tint, Offset(size * 0.24f, size * 0.24f), Offset(size * 0.76f, size * 0.76f), stroke, StrokeCap.Round)
+        drawLine(tint, Offset(size * 0.76f, size * 0.24f), Offset(size * 0.24f, size * 0.76f), stroke, StrokeCap.Round)
+    }
+
     @Composable
     private fun Glyph(
         tint: Color,
@@ -90,6 +120,3 @@ object NavIcons {
     /** One weight across the set; a mixed-weight icon row reads as an accident. */
     private const val STROKE_RATIO: Float = 0.085f
 }
-
-@Suppress("unused")
-private val unusedRect: Rect? = null

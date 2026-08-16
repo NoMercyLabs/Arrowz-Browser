@@ -78,6 +78,9 @@ object Tokens {
     val RadiusSm: Dp = 6.dp
     val RadiusMd: Dp = 12.dp
 
+    // Two sizes and a quiet one for secondary lines. Anything below this is
+    // unreadable from a sofa, so there is no smaller step to reach for.
+    val TextSmall = 14.sp
     val TextBody = 18.sp
     val TextTitle = 28.sp
 

@@ -111,4 +111,12 @@ class TabPressureManagerTest {
         assertEquals(2, TabPressureManager.releasesFor(TabPressureManager.TRIM_MODERATE))
         assertEquals(Int.MAX_VALUE, TabPressureManager.releasesFor(TabPressureManager.TRIM_COMPLETE))
     }
+
+    // Measured on the 8000: this level arrives on every press of HOME, and its
+    // value sits between two real ones, so an ordered table reads leaving the
+    // app as memory pressure and throws away a tab that could have stayed.
+    @Test
+    fun theUiHiddenLevelIsVisibilityNotPressure() {
+        assertEquals(0, TabPressureManager.releasesFor(TabPressureManager.TRIM_UI_HIDDEN))
+    }
 }

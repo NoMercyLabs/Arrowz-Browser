@@ -6,9 +6,13 @@
 package com.nomercylabs.browser
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.util.Log
 import android.view.KeyEvent
 import android.webkit.WebView
@@ -20,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -36,6 +39,7 @@ import com.nomercylabs.browser.browser.PageState
 import com.nomercylabs.browser.browser.WebViewHost
 import androidx.compose.ui.Alignment
 import com.nomercylabs.browser.chrome.NavBar
+import com.nomercylabs.browser.chrome.TabList
 import com.nomercylabs.browser.cursor.CursorOverlay
 import com.nomercylabs.browser.cursor.CursorPosition
 import com.nomercylabs.browser.cursor.CursorState
@@ -49,19 +53,36 @@ import com.nomercylabs.browser.input.KeyDispatcher
 import com.nomercylabs.browser.input.KeyGestureTracker
 import com.nomercylabs.browser.input.KeyPhase
 import com.nomercylabs.browser.input.RemoteKey
+import com.nomercylabs.browser.tabs.MemoryPressure
+import com.nomercylabs.browser.tabs.Tab
+import com.nomercylabs.browser.tabs.TabPage
+import com.nomercylabs.browser.tabs.TabRegistry
 import com.nomercylabs.browser.ui.TvTheme
+
+/** Which chrome surface is over the page. Never two, and never both hidden and
+ *  consuming input. */
+private enum class ChromeSurface { None, NavBar, Tabs }
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var host: WebViewHost
-    private lateinit var webView: WebView
+    private lateinit var registry: TabRegistry
 
-    /** Bumped when the WebView instance is replaced after a renderer death, so
-     *  the composition swaps in the new view rather than holding the dead one. */
-    private var webViewGeneration: Int by mutableStateOf(0)
+    /**
+     * The page surface. Compose holds this one container for the app's life and
+     * the active tab's WebView is swapped inside it.
+     *
+     * Handing the WebView itself to AndroidView instead means reparenting a view
+     * that already has a parent every time a tab is switched, which throws; the
+     * container makes attachment ours to sequence.
+     */
+    private lateinit var pageContainer: FrameLayout
     private val cursor = CursorState()
     private val gestures = KeyGestureTracker()
-    private var chromeOpen: Boolean by mutableStateOf(false)
+    private var chrome: ChromeSurface by mutableStateOf(ChromeSurface.None)
+
+    /** Whether the address field has the system keyboard up. While it does, the
+     *  IME owns every directional key, so BACK has to mean "close it". */
+    private var editingText: Boolean by mutableStateOf(false)
     private var fullscreenActive: Boolean by mutableStateOf(false)
 
     /**
@@ -74,16 +95,50 @@ class MainActivity : ComponentActivity() {
     private lateinit var fullscreen: FullscreenController
     private lateinit var mediaSession: MediaSessionBridge
 
+    private val host: WebViewHost? get() = registry.active?.page as? WebViewHost
+
+    /** Stands in for the microsecond between a renderer dying and its rebuild,
+     *  when no tab has a page to read. */
+    private val emptyPage = PageState()
+
+    /**
+     * Every live tab's view stays in the container; which one is shown is a
+     * visibility change, never a detach.
+     *
+     * Detaching is what a switch obviously wants and it does not work: a
+     * hardware-accelerated WebView re-attached to the window comes back blank.
+     * Measured on the 8000 — the view reported visible, correctly sized, with
+     * the right URL, and painted black. GONE also stops the background tabs
+     * drawing, which is the other half of what a detach was for.
+     */
+    private fun attachActivePage() {
+        registry.tabs.forEach { tab ->
+            val view: WebView = (tab.page as? WebViewHost)?.view ?: return@forEach
+            if (view.parent == null) {
+                pageContainer.addView(
+                    view,
+                    FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
+            view.visibility = if (tab.id == registry.activeId) View.VISIBLE else View.GONE
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        webView = buildWebView()
-        host = WebViewHost(webView)
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
 
         mediaSession = MediaSessionBridge(
             context = this,
-            onAction = { action -> host.sendMediaAction(action) },
+            /**
+             * Routed to the tab that published the session, never to the tab on
+             * screen. The viewer presses play for what they can hear.
+             */
+            onAction = { tabId, action -> hostOf(tabId)?.sendMediaAction(action) },
             /**
              * Audio focus is deliberately NOT requested here.
              *
@@ -97,51 +152,82 @@ class MainActivity : ComponentActivity() {
             onPlayingChanged = { playing -> playingChanged(playing) },
         )
 
-        configureHost(webView)
+        registry = TabRegistry(
+            createPage = { tabId -> createPage(tabId) },
+            isPlayingMedia = { tabId -> mediaSession.isPlaying(tabId) },
+            now = { SystemClock.uptimeMillis() },
+            onOpened = { tab -> (tab.page as? WebViewHost)?.load(HOME_URL) },
+        )
 
-        host.onRebuildRequired { savedState, url ->
-            // The dead view cannot be reused: its process is gone and touching
-            // it throws. A fresh one is adopted, configured identically, and
-            // restored from the state captured before the process died.
-            val replacement: WebView = buildWebView()
-            webView = replacement
-            host.adopt(replacement)
-            configureHost(replacement)
+        pageContainer = FrameLayout(this)
 
-            if (replacement.restoreState(savedState) == null && url.isNotEmpty()) {
-                // No usable history, so at least return to where they were.
-                replacement.loadUrl(url)
-            }
-            webViewGeneration++
-            replacement
-        }
-
-        host.load(HOME_URL)
+        registry.open()
+        attachActivePage()
 
         setContent {
             TvTheme {
                 BrowserScreen(
-                    webView = webView,
-                    generation = webViewGeneration,
+                    pageContainer = pageContainer,
+                    scrollPage = { dx, dy -> host?.view?.scrollBy(dx, dy) },
+                    activeId = registry.activeId,
+                    tabs = registry.tabs,
                     cursor = cursor,
-                    page = host.state,
-                    chromeOpen = chromeOpen,
+                    page = host?.state ?: emptyPage,
+                    chrome = chrome,
+                    editing = editingText,
+                    onEditingChange = { value -> editingText = value },
                     cursorMoving = cursorMoving,
                     onNavigate = { typed -> navigate(typed) },
-                    onBack = { host.goBack() },
-                    onReload = { host.reload() },
-                    onHome = { host.load(HOME_URL) },
+                    onBack = { host?.goBack() },
+                    onReload = { host?.reload() },
+                    onHome = { host?.load(HOME_URL) },
+                    onTabs = { showChrome(ChromeSurface.Tabs) },
+                    onSelectTab = { id -> selectTab(id) },
+                    onCloseTab = { id -> closeTab(id) },
+                    onNewTab = { newTab() },
                 )
             }
         }
     }
 
-    private fun buildWebView(): WebView = WebView(this)
+    /**
+     * Builds one tab's page and everything that has to be rebuilt with it.
+     *
+     * Suspension and renderer death end in the same state — no live view, a
+     * saved bundle, a URL — so both come back through this one factory.
+     */
+    private fun createPage(tabId: String): TabPage {
+        val page = WebViewHost(WebView(this))
+        configureHost(page, tabId)
 
-    /** [target] is the view the host has already adopted; passed for clarity at
-     *  the call sites rather than for lookup. */
-    private fun configureHost(target: WebView) {
-        host.configure(
+        page.onRebuildRequired { savedState, url ->
+            val replacement = WebView(this)
+            page.adopt(replacement)
+            configureHost(page, tabId)
+
+            if (replacement.restoreState(savedState) == null && url.isNotEmpty()) {
+                // No usable history, so at least return to where they were.
+                replacement.loadUrl(url)
+            }
+            attachActivePage()
+            replacement
+        }
+
+        page.onRendererDeath {
+            // The system just killed a process to reclaim memory. Rebuilding
+            // this tab while every other tab still holds a renderer is how a
+            // browser walks into a kill loop, so one death buys one eviction —
+            // never a storm of them.
+            registry.release(1)
+        }
+        return page
+    }
+
+    private fun hostOf(tabId: String): WebViewHost? =
+        registry.tabs.firstOrNull { tab -> tab.id == tabId }?.page as? WebViewHost
+
+    private fun configureHost(page: WebViewHost, tabId: String) {
+        page.configure(
             userAgent = UserAgents.tenFoot(this, BuildConfig.VERSION_NAME),
             isDarkTheme = isSystemDark(),
             onEnterFullscreen = { view, callback ->
@@ -162,7 +248,57 @@ class MainActivity : ComponentActivity() {
                 null
             },
         )
-        host.addBridge("NoMercyMedia", mediaSession.pageInterface)
+        // One interface per tab, so every report the page makes carries which
+        // tab it came from.
+        page.addBridge("NoMercyMedia", mediaSession.pageInterfaceFor(tabId))
+    }
+
+    private fun newTab() {
+        pageContainer = FrameLayout(this)
+
+        registry.open()
+        host?.load(HOME_URL)
+        attachActivePage()
+        showChrome(ChromeSurface.None)
+        relievePressure()
+    }
+
+    private fun selectTab(id: String) {
+        registry.activate(id)
+        attachActivePage()
+        showChrome(ChromeSurface.None)
+        relievePressure()
+    }
+
+    private fun closeTab(id: String) {
+        // Before the tab goes, or its now-playing entry outlives the page that
+        // published it and nothing is left to clear it.
+        mediaSession.releaseIfOwnedBy(id)
+        registry.close(id)
+        attachActivePage()
+    }
+
+    /**
+     * The trim callback is the signal this hardware sends, and it is not
+     * sufficient on its own: the levels below UI_HIDDEN are deprecated and newer
+     * Android versions stop dispatching them. [relievePressure] reads
+     * MemoryInfo instead, at the moments the answer changes.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        val released: List<String> = registry.applyTrim(level)
+        if (BuildConfig.DEBUG) Log.v(TABS_TAG, "trim=$level released=$released")
+    }
+
+    private fun relievePressure() {
+        val info = ActivityManager.MemoryInfo()
+        getSystemService(ActivityManager::class.java)?.getMemoryInfo(info) ?: return
+
+        val count: Int = MemoryPressure.releasesFor(info.availMem, info.threshold, info.lowMemory)
+        if (count <= 0) return
+
+        val released: List<String> = registry.release(count)
+        if (BuildConfig.DEBUG) Log.v(TABS_TAG, "avail=${info.availMem} released=$released")
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -177,13 +313,9 @@ class MainActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
         // The activity declares configChanges so playback survives, which means
         // the theme switch arrives here rather than through a recreate.
-        host.applyTheme(isSystemDark())
+        registry.tabs.forEach { tab -> (tab.page as? WebViewHost)?.applyTheme(isSystemDark()) }
     }
 
-    /**
-     * Leaving the app with a direction still held would leave the pointer
-     * travelling when it comes back, because no key-up ever arrives.
-     */
     override fun onDestroy() {
         super.onDestroy()
         mediaSession.destroy()
@@ -197,6 +329,10 @@ class MainActivity : ComponentActivity() {
     private fun readAsset(name: String): String =
         assets.open(name).bufferedReader().use { reader -> reader.readText() }
 
+    /**
+     * Leaving the app with a direction still held would leave the pointer
+     * travelling when it comes back, because no key-up ever arrives.
+     */
     override fun onPause() {
         super.onPause()
         cursor.releaseAll()
@@ -209,21 +345,40 @@ class MainActivity : ComponentActivity() {
             Configuration.UI_MODE_NIGHT_YES
 
     private fun browserState(): BrowserState = BrowserState(
-        canGoBack = host.state.canGoBack,
-        isPageAtTop = host.state.isAtTop,
+        canGoBack = host?.state?.canGoBack ?: false,
+        isPageAtTop = host?.state?.isAtTop ?: true,
         isCursorAtTopEdge = cursor.y <= EdgeScroller.EDGE_BAND_PX,
-        isChromeOpen = chromeOpen,
+        isChromeOpen = chrome != ChromeSurface.None,
         isFullscreen = fullscreenActive,
+        isEditingText = editingText,
     )
 
     /**
-     * Opening the chrome must release the pointer. A direction held at the
-     * moment the bar appears never receives its key-up through our path, so the
-     * cursor would keep travelling behind the chrome.
+     * Opening a chrome surface must release the pointer. A direction held at the
+     * moment it appears never receives its key-up through our path, so the
+     * cursor would keep travelling behind it.
      */
-    private fun showChrome(open: Boolean) {
-        chromeOpen = open
-        if (open) {
+    private fun showChrome(surface: ChromeSurface) {
+        chrome = surface
+        if (surface != ChromeSurface.NavBar) editingText = false
+
+        // The page keeps Android focus while a surface is over it, so every key
+        // the dispatcher hands on goes to the WebView's own focus walking rather
+        // than to our controls. Measured on the 8010: opening the bar and
+        // pressing toward the tabs button typed a letter into the page's search
+        // box instead. Blocking descendants is not enough on its own — a view
+        // that already holds focus keeps it.
+        val blocking: Boolean = surface != ChromeSurface.None
+        pageContainer.descendantFocusability = if (blocking) {
+            ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        } else {
+            ViewGroup.FOCUS_AFTER_DESCENDANTS
+        }
+        if (blocking) {
+            host?.view?.clearFocus()
+            pageContainer.clearFocus()
+        }
+        if (surface != ChromeSurface.None) {
             cursor.releaseAll()
             gestures.clear()
             cursorMoving = false
@@ -260,27 +415,33 @@ class MainActivity : ComponentActivity() {
         if (phase == null) {
             if (event.action == KeyEvent.ACTION_UP && key in DIRECTIONS) {
                 route(Command.StopMove(key))
+                return true
             }
-            return true
+            return super.dispatchKeyEvent(event)
         }
 
-        return handle(KeyDispatcher.dispatch(key, phase, browserState()))
-    }
+        // Declining a key means handing it on, never eating it. Returning false
+        // from here does not pass the event down — it ends it — so every key the
+        // dispatcher does not claim has to be dispatched explicitly. Without
+        // this, the chrome's own controls are unreachable: the dispatcher
+        // returns null for directional keys while a surface is open precisely so
+        // Compose can move focus between them, and that focus move never
+        // happened. Measured on the 8010: RIGHT from the address field never
+        // reached the button beside it.
+        val command: Command? = KeyDispatcher.dispatch(key, phase, browserState())
 
-    /**
-     * Returns whether the press was consumed. Claiming a key the app does not
-     * act on is how a television stops responding to its own remote.
-     */
-    private fun handle(command: Command?): Boolean {
-        // Debug builds only. Which of BACK's four meanings fired is otherwise
-        // unobservable from outside: several of them look identical on screen.
-        if (BuildConfig.DEBUG) Log.v(INPUT_TAG, "command=$command state=${browserState()}")
-        return route(command)
+        // Debug builds only. Which of BACK's five meanings fired, and whether a
+        // key was ours at all, is otherwise unobservable from outside: several
+        // of them look identical on screen.
+        if (BuildConfig.DEBUG) Log.v(INPUT_TAG, "key=$key phase=$phase cmd=$command ${browserState()}")
+
+        if (command == null) return super.dispatchKeyEvent(event)
+        return route(command) || super.dispatchKeyEvent(event)
     }
 
     private fun route(command: Command?): Boolean = when (command) {
         null -> false
-        Command.GoBack -> { host.goBack(); true }
+        Command.GoBack -> { host?.goBack(); true }
         Command.ExitApp -> { finish(); true }
 
         is Command.StartMove -> {
@@ -293,7 +454,10 @@ class MainActivity : ComponentActivity() {
             cursorMoving = cursor.isMoving
             true
         }
-        Command.Activate -> { TouchSynthesizer.tap(webView, cursor.position()); true }
+        Command.Activate -> {
+            host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
+            true
+        }
 
         /**
          * The menu lands in slice 10. Until then this must still be CONSUMED,
@@ -309,13 +473,10 @@ class MainActivity : ComponentActivity() {
             KeyDispatcher.dispatch(RemoteKey.Back, KeyPhase.Up, browserState()),
         )
 
-        // The nav bar arrives in slice 8. Consumed rather than passed through,
-        // so UP at the top of a page does not also drive the pointer upward
-        // into an edge scroll it was never meant to trigger.
-        Command.RevealNavBar -> { showChrome(true); true }
-        Command.CloseChrome -> { showChrome(false); true }
+        Command.RevealNavBar -> { showChrome(ChromeSurface.NavBar); true }
+        Command.CloseChrome -> { showChrome(ChromeSurface.None); true }
+        Command.StopEditing -> { editingText = false; true }
 
-        // Reachable only from states later slices introduce.
         Command.ExitFullscreen -> { fullscreen.exit(); true }
         Command.ToggleInputMode -> false
     }
@@ -327,16 +488,12 @@ class MainActivity : ComponentActivity() {
      */
     private fun navigate(typed: String) {
         when (val destination = UrlOrSearch.resolve(typed, UrlOrSearch.DUCKDUCKGO)) {
-            is UrlOrSearch.Destination.Url -> {
-                host.load(destination.url)
-                showChrome(false)
-            }
-            is UrlOrSearch.Destination.Search -> {
-                host.load(UrlOrSearch.searchUrl(destination.query, UrlOrSearch.DUCKDUCKGO))
-                showChrome(false)
-            }
-            UrlOrSearch.Destination.Blocked, UrlOrSearch.Destination.Nothing -> showChrome(false)
+            is UrlOrSearch.Destination.Url -> host?.load(destination.url)
+            is UrlOrSearch.Destination.Search ->
+                host?.load(UrlOrSearch.searchUrl(destination.query, UrlOrSearch.DUCKDUCKGO))
+            UrlOrSearch.Destination.Blocked, UrlOrSearch.Destination.Nothing -> Unit
         }
+        showChrome(ChromeSurface.None)
     }
 
     private fun remoteKeyOf(keyCode: Int): RemoteKey? = when (keyCode) {
@@ -352,6 +509,7 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val HOME_URL: String = "https://duckduckgo.com/"
         const val INPUT_TAG: String = "NmInput"
+        const val TABS_TAG: String = "NmTabs"
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
@@ -360,16 +518,24 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun BrowserScreen(
-    webView: WebView,
-    generation: Int,
+    pageContainer: FrameLayout,
+    scrollPage: (dx: Int, dy: Int) -> Unit,
+    activeId: String,
+    tabs: List<Tab>,
     cursor: CursorState,
     page: PageState,
-    chromeOpen: Boolean,
+    chrome: ChromeSurface,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
     cursorMoving: Boolean,
     onNavigate: (String) -> Unit,
     onBack: () -> Unit,
     onReload: () -> Unit,
     onHome: () -> Unit,
+    onTabs: () -> Unit,
+    onSelectTab: (String) -> Unit,
+    onCloseTab: (String) -> Unit,
+    onNewTab: () -> Unit,
 ) {
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
@@ -411,7 +577,7 @@ private fun BrowserScreen(
                     )
                     if (scroll.dx != 0 || scroll.dy != 0) {
                         if (edgeHeldSinceMillis == 0L) edgeHeldSinceMillis = frameMillis
-                        webView.scrollBy(scroll.dx, scroll.dy)
+                        scrollPage(scroll.dx, scroll.dy)
                     } else {
                         edgeHeldSinceMillis = 0L
                     }
@@ -423,28 +589,43 @@ private fun BrowserScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Keyed on the generation so a rebuilt WebView actually replaces the
-        // dead one in the hierarchy; without the key the old instance is kept.
-        key(generation) {
-            AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
-        }
+        // The container, not the WebView. Which view is inside it is the
+        // activity's business, and Compose never has to reparent anything.
+        AndroidView(factory = { pageContainer }, modifier = Modifier.fillMaxSize())
 
-        // Hidden while chrome is open, so it is never ambiguous on screen which
-        // of the two focus systems the D-pad is driving.
-        CursorOverlay(position = position, visible = !chromeOpen)
+        // Hidden while a chrome surface is open, so it is never ambiguous on
+        // screen which of the two focus systems the D-pad is driving.
+        CursorOverlay(position = position, visible = chrome == ChromeSurface.None)
 
-        if (chromeOpen) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        when (chrome) {
+            ChromeSurface.None -> Unit
+
+            ChromeSurface.NavBar -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
                 NavBar(
                     currentUrl = page.url,
                     canGoBack = page.canGoBack,
                     progress = page.progress,
+                    tabCount = tabs.size,
+                    editing = editing,
+                    onEditingChange = onEditingChange,
                     onNavigate = onNavigate,
                     onBack = onBack,
                     onReload = onReload,
                     onHome = onHome,
+                    onTabs = onTabs,
                 )
             }
+
+            ChromeSurface.Tabs -> TabList(
+                tabs = tabs,
+                activeId = activeId,
+                onSelect = onSelectTab,
+                onClose = onCloseTab,
+                onNewTab = onNewTab,
+            )
         }
     }
 }

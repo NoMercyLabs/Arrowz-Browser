@@ -61,6 +61,13 @@ object TabPressureManager {
      * throws away tabs the user still wanted.
      */
     fun releasesFor(trimLevel: Int): Int = when {
+        // Not a severity at all: it says the UI is no longer visible, and it
+        // arrives every single time somebody presses HOME. Its numeric value
+        // sits between two of the real levels, so an ordered table reads it as
+        // pressure and throws away tabs on the way out of the app. Measured on
+        // the 8000: pressing HOME released a tab with memory to spare.
+        trimLevel == TRIM_UI_HIDDEN -> 0
+
         trimLevel >= TRIM_COMPLETE -> Int.MAX_VALUE
         trimLevel >= TRIM_MODERATE -> 2
         trimLevel >= TRIM_BACKGROUND -> 1
@@ -73,6 +80,7 @@ object TabPressureManager {
     // Android import and the table above reads as the policy it is.
     const val TRIM_RUNNING_LOW: Int = 10
     const val TRIM_RUNNING_CRITICAL: Int = 15
+    const val TRIM_UI_HIDDEN: Int = 20
     const val TRIM_BACKGROUND: Int = 40
     const val TRIM_MODERATE: Int = 60
     const val TRIM_COMPLETE: Int = 80

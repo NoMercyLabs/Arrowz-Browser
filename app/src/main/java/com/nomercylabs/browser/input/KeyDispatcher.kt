@@ -45,17 +45,20 @@ object KeyDispatcher {
     }
 
     /**
-     * BACK's four meanings, first match wins.
+     * BACK's five meanings, first match wins.
      *
      * The order is the whole specification. Exiting fullscreen must outrank
-     * history, or leaving a video navigates the page underneath it; closing
-     * chrome must outrank history for the same reason. Reaching [Command.ExitApp]
-     * once history is exhausted is what guarantees no page can trap the user.
+     * history, or leaving a video navigates the page underneath it; closing the
+     * keyboard must outrank closing the bar that raised it, or one press throws
+     * away what was being typed; closing chrome must outrank history for the
+     * same reason. Reaching [Command.ExitApp] once history is exhausted is what
+     * guarantees no page can trap the user.
      */
     private fun dispatchBack(phase: KeyPhase, state: BrowserState): Command? = when (phase) {
         KeyPhase.LongPress -> Command.OpenMenu
         KeyPhase.Up -> when {
             state.isFullscreen -> Command.ExitFullscreen
+            state.isEditingText -> Command.StopEditing
             state.isChromeOpen -> Command.CloseChrome
             state.canGoBack -> Command.GoBack
             else -> Command.ExitApp
