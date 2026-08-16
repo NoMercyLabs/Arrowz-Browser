@@ -27,6 +27,7 @@ import com.nomercylabs.browser.ui.Palette
 import com.nomercylabs.browser.ui.Tokens
 import com.nomercylabs.browser.ui.TvTextField
 import com.nomercylabs.browser.ui.overscan
+import com.nomercylabs.browser.ui.chromeHeader
 
 /**
  * Find in page.
@@ -50,8 +51,7 @@ fun FindBar(
 
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.surface.copy(alpha = SCRIM_ALPHA))
+            .chromeHeader()
             .overscan(),
         horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
         verticalAlignment = Alignment.CenterVertically,

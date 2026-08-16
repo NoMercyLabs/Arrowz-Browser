@@ -92,6 +92,7 @@ import com.nomercylabs.browser.tabs.TabRegistry
 import com.nomercylabs.browser.ui.LocalPalette
 import com.nomercylabs.browser.ui.ThemeMode
 import com.nomercylabs.browser.ui.TvTheme
+import androidx.compose.ui.focus.FocusRequester
 
 /** Which chrome surface is over the page. Never two, and never both hidden and
  *  consuming input. */
@@ -1052,6 +1053,10 @@ private fun BrowserScreen(
         // The bar is part of this screen rather than something to reveal: a new
         // tab is where an address gets typed, and hiding the field behind a
         // gesture on the one screen that exists to accept one is perverse.
+        // Owned here rather than inside either section, because it is the door
+        // between them: the bar sends DOWN to it and the grid answers to it.
+        val firstTile = remember { FocusRequester() }
+
         if (showHome) {
             // Opaque: the page underneath is still loaded and would otherwise
             // read through the gaps as a ghost of the last thing opened.
@@ -1083,8 +1088,13 @@ private fun BrowserScreen(
                     suggestionsFor = suggestionsFor,
                     onPickSuggestion = onPickSuggestion,
                     onVoice = onVoice,
+                    downTarget = if (homeTiles.isEmpty()) null else firstTile,
                 )
-                HomeGrid(tiles = homeTiles, onOpen = onOpenTile)
+                HomeGrid(
+                    tiles = homeTiles,
+                    onOpen = onOpenTile,
+                    firstTileFocusRequester = firstTile,
+                )
             }
         }
 

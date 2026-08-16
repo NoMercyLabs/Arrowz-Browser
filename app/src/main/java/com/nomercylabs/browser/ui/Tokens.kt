@@ -135,7 +135,14 @@ object Tokens {
      * focus drift apart.
      */
     object Focus {
-        val RingWidth: Dp = 2.dp
+        /** Thicker than it looks right at arm's length. At three metres a 2dp
+         *  ring is a hairline, and focus is the only thing telling the viewer
+         *  where they are. */
+        val RingWidth: Dp = 3.dp
+
+        /** A focused surface is genuinely lifted, not just outlined. This is
+         *  what a coloured tile uses instead of a fill it cannot afford. */
+        val Elevation: Dp = 12.dp
         val RingGap: Dp = 2.dp
         val Scale: Float = 1.06f
         const val TransitionMillis: Int = 150

@@ -16,7 +16,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import com.nomercylabs.browser.R
@@ -38,6 +41,13 @@ import com.nomercylabs.browser.ui.overscan
 fun HomeGrid(
     tiles: List<Tile>,
     onOpen: (String) -> Unit,
+    /**
+     * Named by the bar above, which sends DOWN here. A geometric search across
+     * the gap between two sections finds nothing reliably — measured on the
+     * 8010, where DOWN out of the address field landed on no control at all
+     * until OK had been pressed first.
+     */
+    firstTileFocusRequester: FocusRequester,
 ) {
     val palette: Palette = LocalPalette.current
 
@@ -64,16 +74,22 @@ fun HomeGrid(
             columns = GridCells.Fixed(COLUMNS),
             horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceMd),
             verticalArrangement = Arrangement.spacedBy(Tokens.SpaceMd),
-            modifier = Modifier.padding(top = Tokens.SpaceSm),
+            // A group with a memory: leaving the grid and coming back restores
+            // the tile that was last focused, which is what every television
+            // interface does and what makes a long grid usable at all.
+            modifier = Modifier
+                .padding(top = Tokens.SpaceSm)
+                .focusGroup()
+                .focusRestorer(firstTileFocusRequester),
         ) {
             items(tiles, key = { tile -> tile.origin }) { tile ->
                 SiteTile(
                     title = tile.title,
                     origin = tile.origin,
                     isFavourite = tile.isFavourite,
-                    // The first tile holds focus when the screen appears, so
-                    // the D-pad is never pointing at nothing.
-                    requestInitialFocus = tile === tiles.first(),
+                    // The bar above owns focus when the screen appears, so this
+                    // is a target to be sent to rather than one that grabs.
+                    externalFocusRequester = if (tile === tiles.first()) firstTileFocusRequester else null,
                     onClick = { onOpen(tile.url) },
                 )
             }

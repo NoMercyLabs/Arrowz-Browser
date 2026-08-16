@@ -35,8 +35,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusRequester
@@ -68,6 +71,34 @@ fun Modifier.raised(shape: RoundedCornerShape = RoundedCornerShape(Tokens.Radius
 }
 
 /**
+ * A bar that sits above the page: the address bar, and find.
+ *
+ * A header drawn on the page's own colour is a strip of nothing with controls
+ * floating in it. Its own surface, a shadow beneath it and a line along the
+ * bottom edge are what say the page passes underneath rather than around.
+ *
+ * Full-screen surfaces — the menu, the tab list, the library screens — take the
+ * page's colour instead, because they replace the page rather than sit over it.
+ */
+@Composable
+fun Modifier.chromeHeader(): Modifier {
+    val palette: Palette = LocalPalette.current
+    val hairlinePx: Float = with(LocalDensity.current) { Tokens.Hairline.toPx() }
+    return this
+        .fillMaxWidth()
+        .shadow(Tokens.Focus.Elevation)
+        .background(palette.surfaceRaised.copy(alpha = HEADER_ALPHA))
+        .drawBehind {
+            drawLine(
+                color = palette.outline,
+                start = Offset(0f, size.height),
+                end = Offset(size.width, size.height),
+                strokeWidth = hairlinePx,
+            )
+        }
+}
+
+/**
  * Focus is the entire visual language on a television. There is no hover and no
  * pointer state for our own chrome, so this modifier is what tells the viewer
  * where they are, and it goes on every focusable surface without exception.
@@ -90,6 +121,13 @@ fun Modifier.tvFocusable(
      * screen edges. Wide controls take the ring alone.
      */
     scaleOnFocus: Boolean = true,
+    /**
+     * Off where the control draws its own ring closer to the thing being
+     * focused. A tile carried two: one around its artwork and one around the
+     * artwork plus its label, which reads as a rendering fault rather than as
+     * emphasis.
+     */
+    drawRing: Boolean = true,
 ): Modifier {
     val palette: Palette = LocalPalette.current
     val scale: Float by animateFloatAsState(
@@ -100,8 +138,8 @@ fun Modifier.tvFocusable(
     return this
         .scale(scale)
         .border(
-            width = if (focused) Tokens.Focus.RingWidth else 0.dp,
-            color = if (focused) palette.focusRing else Color.Transparent,
+            width = if (focused && drawRing) Tokens.Focus.RingWidth else 0.dp,
+            color = if (focused && drawRing) palette.focusRing else Color.Transparent,
             shape = shape,
         )
 }
@@ -378,11 +416,13 @@ fun SiteTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     requestInitialFocus: Boolean = false,
+    externalFocusRequester: FocusRequester? = null,
 ) {
     val palette: Palette = LocalPalette.current
     var focused: Boolean by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
-    val focusRequester = remember { FocusRequester() }
+    val ownFocusRequester = remember { FocusRequester() }
+    val focusRequester: FocusRequester = externalFocusRequester ?: ownFocusRequester
     val label: String = title.ifBlank { origin }
 
     LaunchedEffect(requestInitialFocus) {
@@ -393,7 +433,7 @@ fun SiteTile(
         modifier = modifier
             .focusRequester(focusRequester)
             .onFocusChanged { focused = it.isFocused }
-            .tvFocusable(focused)
+            .tvFocusable(focused, drawRing = false)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .semantics { contentDescription = label }
             // Inside the focus ring, so the growth on focus has somewhere to go
@@ -404,7 +444,19 @@ fun SiteTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(TILE_HEIGHT)
-                .raised()
+                // The lift is the focus signal a coloured tile can carry: its
+                // own colour is the thing identifying the site, so filling it
+                // with the accent would throw that away. Height and a ring do
+                // the work instead.
+                .shadow(
+                    if (focused) Tokens.Focus.Elevation else Tokens.Elevation,
+                    RoundedCornerShape(Tokens.Radius),
+                )
+                .border(
+                    width = if (focused) Tokens.Focus.RingWidth else Tokens.Hairline,
+                    color = if (focused) palette.focusRing else palette.outline,
+                    shape = RoundedCornerShape(Tokens.Radius),
+                )
                 // A gradient rather than a flat fill. A row of flat rectangles
                 // reads as placeholders waiting for artwork; the same colour
                 // with a light top and a deep bottom reads as a made thing.
@@ -442,6 +494,7 @@ fun SiteTile(
             style = TextStyle(
                 color = if (focused) palette.accent else palette.onSurface,
                 fontSize = Tokens.TextSmall,
+                fontWeight = if (focused) FontWeight.Bold else FontWeight.Normal,
             ),
             // The tile itself keeps its own colour on focus: filling it would
             // throw away the one thing that tells sites apart at a glance.
@@ -475,3 +528,8 @@ private val BUTTON_SIZE = 48.dp
 private val SELECTED_BAR_HEIGHT = 40.dp
 private const val SELECTED_ALPHA: Float = 0.35f
 private const val MUTED_ON_ACCENT: Float = 0.75f
+
+/** Nearly opaque. A header has to be readable over whatever the page happens to
+ *  be showing behind it, and only the last sliver of transparency says there is
+ *  a page there at all. */
+private const val HEADER_ALPHA: Float = 0.97f

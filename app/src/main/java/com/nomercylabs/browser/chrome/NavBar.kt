@@ -37,6 +37,8 @@ import com.nomercylabs.browser.ui.Palette
 import com.nomercylabs.browser.ui.Tokens
 import com.nomercylabs.browser.ui.TvTextField
 import com.nomercylabs.browser.ui.overscan
+import androidx.compose.foundation.focusGroup
+import com.nomercylabs.browser.ui.chromeHeader
 
 /**
  * The address bar.
@@ -63,6 +65,13 @@ fun NavBar(
     suggestionsFor: (String) -> List<Suggestion>,
     onPickSuggestion: (Suggestion) -> Unit,
     onVoice: () -> Unit,
+    /**
+     * Where DOWN goes when there is nothing to suggest: the first tile of the
+     * home grid. Named rather than searched for, because a geometric search
+     * across the gap between two sections found nothing at all — DOWN out of
+     * the field left no control focused anywhere on screen.
+     */
+    downTarget: FocusRequester? = null,
 ) {
     val palette: Palette = LocalPalette.current
     var typed: String by remember(currentUrl) { mutableStateOf(currentUrl) }
@@ -75,12 +84,21 @@ fun NavBar(
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.surface.copy(alpha = SCRIM_ALPHA))
+            .chromeHeader()
             .overscan(),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            // One group, one exit. Every control in the bar hands DOWN to the
+            // same place, rather than each button searching for whatever
+            // happens to sit under it.
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusGroup()
+                .focusProperties {
+                    val target: FocusRequester? =
+                        if (suggestions.isNotEmpty()) firstSuggestion else downTarget
+                    if (target != null) down = target
+                },
             horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -116,11 +134,7 @@ fun NavBar(
                 // all — no ring anywhere and the next press lost — because the
                 // list appears underneath the control the viewer is standing on
                 // rather than being there when focus arrived.
-                modifier = Modifier
-                    .weight(1f)
-                    .focusProperties {
-                        if (suggestions.isNotEmpty()) down = firstSuggestion
-                    },
+                modifier = Modifier.weight(1f),
             )
 
             // Beside the field, because speaking is the alternative to typing
