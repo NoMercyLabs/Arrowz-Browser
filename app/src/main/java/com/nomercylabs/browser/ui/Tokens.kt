@@ -32,6 +32,16 @@ data class Palette(
      * line is what actually separates a control from the screen behind it.
      */
     val outline: Color,
+    /**
+     * A step further from the page than [surfaceRaised], for something offered
+     * on top of a control rather than sitting beside it.
+     *
+     * The address bar's suggestions were drawn on the same value as the field
+     * above them and read as more chrome rather than as an answer to what was
+     * typed. A surface that is proposing something has to look different from
+     * the one that asked.
+     */
+    val surfaceOffered: Color,
     val onSurface: Color,
     val onSurfaceMuted: Color,
     val accent: Color,
@@ -49,6 +59,7 @@ object Palettes {
     val Dark = Palette(
         surface = Color(0xFF0A0A0C),
         surfaceRaised = Color(0xFF16161C),
+        surfaceOffered = Color(0xFF26262F),
         outline = Color(0x1FFFFFFF),
         onSurface = Color(0xFFF2F2F5),
         onSurfaceMuted = Color(0xFF9A9AA6),
@@ -69,6 +80,7 @@ object Palettes {
         // this reads as controls on a screen.
         surface = Color(0xFFF7F7FA),
         surfaceRaised = Color(0xFFE2E2EA),
+        surfaceOffered = Color(0xFFCFCFDB),
         outline = Color(0x1F000000),
         onSurface = Color(0xFF14141A),
         onSurfaceMuted = Color(0xFF5B5B66),
@@ -111,6 +123,10 @@ object Tokens {
     val TextSmall = 14.sp
     val TextBody = 18.sp
     val TextTitle = 28.sp
+
+    /** For a tile's initials, which are the only thing identifying a site
+     *  before a favicon exists, and have a whole tile to fill. */
+    val TextDisplay = 44.sp
 
     /**
      * The focus ring geometry is defined here exactly once. Slice 14 injects

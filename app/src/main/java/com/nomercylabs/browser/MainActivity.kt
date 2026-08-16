@@ -59,10 +59,17 @@ import com.nomercylabs.browser.input.KeyDispatcher
 import com.nomercylabs.browser.input.KeyGestureTracker
 import com.nomercylabs.browser.input.KeyPhase
 import com.nomercylabs.browser.input.RemoteKey
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import com.nomercylabs.browser.data.Bookmark
 import com.nomercylabs.browser.data.BrowserStore
 import com.nomercylabs.browser.data.HomeContent
 import com.nomercylabs.browser.data.SqliteBrowserStore
+import com.nomercylabs.browser.data.Suggestion
+import com.nomercylabs.browser.data.Suggestions
 import com.nomercylabs.browser.data.Tile
+import com.nomercylabs.browser.data.Visit
 import com.nomercylabs.browser.tabs.MemoryPressure
 import com.nomercylabs.browser.tabs.Tab
 import com.nomercylabs.browser.tabs.TabPage
@@ -95,6 +102,10 @@ class MainActivity : ComponentActivity() {
     /** Whether the address field has the system keyboard up. While it does, the
      *  IME owns every directional key, so BACK has to mean "close it". */
     private var editingText: Boolean by mutableStateOf(false)
+
+    /** Set while the keyboard holds window focus, so regaining it is read as the
+     *  keyboard closing rather than as the app simply coming forward. */
+    private var keyboardTookFocus: Boolean = false
     private var fullscreenActive: Boolean by mutableStateOf(false)
 
     /**
@@ -115,6 +126,11 @@ class MainActivity : ComponentActivity() {
      * frames.
      */
     private var homeTiles: List<Tile> by mutableStateOf(emptyList())
+
+    /** The same snapshot the tiles were built from. The address bar ranks
+     *  against the raw rows, which the tiles have already trimmed and merged. */
+    private var knownBookmarks: List<Bookmark> by mutableStateOf(emptyList())
+    private var knownVisits: List<Visit> by mutableStateOf(emptyList())
 
     /** Read from the store on the way in and written back on every change, so
      *  the choice survives a restart the way a browser's does. */
@@ -221,6 +237,10 @@ class MainActivity : ComponentActivity() {
                     showHome = registry.active?.isHome ?: true,
                     homeTiles = homeTiles,
                     onOpenTile = { url -> openFromHome(url) },
+                    suggestionsFor = { query ->
+                        Suggestions.forQuery(query, knownBookmarks, knownVisits)
+                    },
+                    onPickSuggestion = { suggestion -> navigate(suggestion.url) },
                     themeMode = themeMode,
                     onCycleTheme = { cycleThemeMode() },
                     onSelectTab = { id -> selectTab(id) },
@@ -257,8 +277,7 @@ class MainActivity : ComponentActivity() {
         page.onNavigated { url ->
             storeThread.execute {
                 store.recordVisit(url)
-                val tiles: List<Tile> = HomeContent.tiles(store.bookmarks(), store.visits())
-                runOnUiThread { homeTiles = tiles }
+                publishLibrary()
             }
         }
 
@@ -334,9 +353,23 @@ class MainActivity : ComponentActivity() {
         ThemeMode.Light -> false
     }
 
-    private fun refreshHome() = storeThread.execute {
-        val tiles: List<Tile> = HomeContent.tiles(store.bookmarks(), store.visits())
-        runOnUiThread { homeTiles = tiles }
+    private fun refreshHome() = storeThread.execute { publishLibrary() }
+
+    /**
+     * One read of the store feeding both the home grid and the address bar.
+     *
+     * Called on the store thread only: SQLite on the main thread is felt as
+     * dropped frames on a television's storage.
+     */
+    private fun publishLibrary() {
+        val bookmarks: List<Bookmark> = store.bookmarks()
+        val visits: List<Visit> = store.visits()
+        val tiles: List<Tile> = HomeContent.tiles(bookmarks, visits)
+        runOnUiThread {
+            knownBookmarks = bookmarks
+            knownVisits = visits
+            homeTiles = tiles
+        }
     }
 
     /** Toggling reads the tiles rather than the store, because the tiles are
@@ -352,8 +385,7 @@ class MainActivity : ComponentActivity() {
 
         storeThread.execute {
             if (wasFavourite) store.removeBookmark(origin) else store.addBookmark(url, title)
-            val tiles: List<Tile> = HomeContent.tiles(store.bookmarks(), store.visits())
-            runOnUiThread { homeTiles = tiles }
+            publishLibrary()
         }
     }
 
@@ -415,6 +447,22 @@ class MainActivity : ComponentActivity() {
         // interactions, and a video that grows letterboxing halfway through
         // looks broken.
         if (hasFocus) fullscreen.reapplyImmersiveIfActive()
+
+        // How editing ends. The leanback IME is its own window: it takes focus,
+        // swallows the BACK that dismisses it, and reports no IME inset at all
+        // on this platform, so neither our key path nor `WindowInsets.isImeVisible`
+        // ever learns that it went away. Measured on the 8010: the keyboard was
+        // down, the field still held the caret, and DOWN moved it through the
+        // text instead of into the suggestions. Regaining window focus is the
+        // one signal that does arrive.
+        if (!hasFocus) {
+            keyboardTookFocus = editingText
+            return
+        }
+        if (editingText && keyboardTookFocus) {
+            editingText = false
+            keyboardTookFocus = false
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -461,8 +509,22 @@ class MainActivity : ComponentActivity() {
         // the tab list: there is no page under the pointer to click.
         isChromeOpen = chrome != ChromeSurface.None || (registry.active?.isHome ?: true),
         isFullscreen = fullscreenActive,
-        isEditingText = editingText,
+        // The window is asked rather than the composition flag: the leanback IME
+        // hides itself on BACK and does not always consume the key, so the flag
+        // can already be false while the same press is still travelling. Read as
+        // "not editing", that press falls through to the exit rung of the
+        // ladder, and dropping the keyboard closes the browser.
+        isEditingText = editingText || isKeyboardShowing(),
     )
+
+    private fun hideKeyboard() {
+        WindowCompat.getInsetsController(window, window.decorView)
+            .hide(WindowInsetsCompat.Type.ime())
+    }
+
+    private fun isKeyboardShowing(): Boolean =
+        ViewCompat.getRootWindowInsets(window.decorView)
+            ?.isVisible(WindowInsetsCompat.Type.ime()) ?: false
 
     /**
      * Opening a chrome surface must release the pointer. A direction held at the
@@ -608,7 +670,7 @@ class MainActivity : ComponentActivity() {
 
         Command.RevealNavBar -> { showChrome(ChromeSurface.NavBar); true }
         Command.CloseChrome -> { showChrome(ChromeSurface.None); true }
-        Command.StopEditing -> { editingText = false; true }
+        Command.StopEditing -> { editingText = false; hideKeyboard(); true }
 
         Command.ExitFullscreen -> { fullscreen.exit(); true }
         Command.ToggleInputMode -> false
@@ -664,6 +726,8 @@ private fun BrowserScreen(
     showHome: Boolean,
     homeTiles: List<Tile>,
     onOpenTile: (String) -> Unit,
+    suggestionsFor: (String) -> List<Suggestion>,
+    onPickSuggestion: (Suggestion) -> Unit,
     isFavourite: Boolean,
     onToggleFavourite: () -> Unit,
     themeMode: ThemeMode,
@@ -776,6 +840,8 @@ private fun BrowserScreen(
                     onHome = onHome,
                     onTabs = onTabs,
                     onToggleFavourite = onToggleFavourite,
+                    suggestionsFor = suggestionsFor,
+                    onPickSuggestion = onPickSuggestion,
                 )
                 HomeGrid(tiles = homeTiles, onOpen = onOpenTile)
             }
@@ -806,6 +872,8 @@ private fun BrowserScreen(
                     onHome = onHome,
                     onTabs = onTabs,
                     onToggleFavourite = onToggleFavourite,
+                    suggestionsFor = suggestionsFor,
+                    onPickSuggestion = onPickSuggestion,
                 )
             }
 

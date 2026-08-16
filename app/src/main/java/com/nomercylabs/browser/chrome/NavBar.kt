@@ -23,10 +23,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.nomercylabs.browser.R
+import com.nomercylabs.browser.data.Suggestion
 import com.nomercylabs.browser.ui.IconButton
 import com.nomercylabs.browser.ui.LocalPalette
 import com.nomercylabs.browser.ui.NavIcons
@@ -57,9 +60,17 @@ fun NavBar(
     onHome: () -> Unit,
     onTabs: () -> Unit,
     onToggleFavourite: () -> Unit,
+    suggestionsFor: (String) -> List<Suggestion>,
+    onPickSuggestion: (Suggestion) -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
     var typed: String by remember(currentUrl) { mutableStateOf(currentUrl) }
+
+    // Nothing is offered until the address has actually been touched: opening
+    // the bar to check where you are should not bury the page under a list.
+    val suggestions: List<Suggestion> =
+        if (typed == currentUrl) emptyList() else suggestionsFor(typed)
+    val firstSuggestion = remember { FocusRequester() }
 
     Column(
         modifier = Modifier
@@ -98,7 +109,17 @@ fun NavBar(
                 requestInitialFocus = true,
                 // weight, not fillMaxWidth: inside a Row the latter takes the
                 // whole width and draws over the buttons beside it.
-                modifier = Modifier.weight(1f),
+                //
+                // DOWN is named rather than searched for. Measured on the 8010:
+                // the geometric search left the field and landed on nothing at
+                // all — no ring anywhere and the next press lost — because the
+                // list appears underneath the control the viewer is standing on
+                // rather than being there when focus arrived.
+                modifier = Modifier
+                    .weight(1f)
+                    .focusProperties {
+                        if (suggestions.isNotEmpty()) down = firstSuggestion
+                    },
             )
 
             IconButton(
@@ -134,6 +155,12 @@ fun NavBar(
                     .background(palette.accent, RoundedCornerShape(PROGRESS_HEIGHT / 2)),
             )
         }
+
+        SuggestionList(
+            suggestions = suggestions,
+            onPick = onPickSuggestion,
+            firstRowFocusRequester = firstSuggestion,
+        )
     }
 }
 

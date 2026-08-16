@@ -41,8 +41,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Lifts a raised surface off the page: a small shadow, and a hairline that does
@@ -112,11 +115,12 @@ fun Modifier.tvFocusable(
  * needs no colour vision to read as "this one".
  */
 @Composable
-fun focusFill(focused: Boolean, selected: Boolean = false): Color {
+fun focusFill(focused: Boolean, selected: Boolean = false, offered: Boolean = false): Color {
     val palette: Palette = LocalPalette.current
     return when {
         focused -> palette.accent
         selected -> palette.accentDeep.copy(alpha = SELECTED_ALPHA)
+        offered -> palette.surfaceOffered
         else -> palette.surfaceRaised
     }
 }
@@ -278,12 +282,20 @@ fun ListRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     requestInitialFocus: Boolean = false,
+    /** Drawn a step brighter than the surrounding chrome, for a row proposing
+     *  something rather than one listing what already exists. */
+    offered: Boolean = false,
+    /** Supplied when something outside the row has to send focus here by name.
+     *  A geometric search cannot always find a row that appeared underneath the
+     *  control the viewer is standing on. */
+    externalFocusRequester: FocusRequester? = null,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val palette: Palette = LocalPalette.current
     var focused: Boolean by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
-    val focusRequester = remember { FocusRequester() }
+    val ownFocusRequester = remember { FocusRequester() }
+    val focusRequester: FocusRequester = externalFocusRequester ?: ownFocusRequester
 
     // Owned here rather than by the caller: a requester the caller attaches from
     // outside can be asked for focus before the row exists, which throws.
@@ -296,7 +308,7 @@ fun ListRow(
             .fillMaxWidth()
             .focusGroup()
             .raised()
-            .background(focusFill(focused, selected), RoundedCornerShape(Tokens.Radius))
+            .background(focusFill(focused, selected, offered), RoundedCornerShape(Tokens.Radius))
             .padding(Tokens.SpaceXs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
@@ -393,21 +405,34 @@ fun SiteTile(
                 .fillMaxWidth()
                 .height(TILE_HEIGHT)
                 .raised()
-                .background(tileColour(origin, palette), RoundedCornerShape(Tokens.Radius)),
+                // A gradient rather than a flat fill. A row of flat rectangles
+                // reads as placeholders waiting for artwork; the same colour
+                // with a light top and a deep bottom reads as a made thing.
+                .background(
+                    Brush.verticalGradient(tileColours(origin, palette)),
+                    RoundedCornerShape(Tokens.Radius),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             BasicText(
-                text = origin.firstOrNull()?.uppercase() ?: "?",
-                style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextTitle),
+                text = origin.take(INITIALS).uppercase(),
+                style = TextStyle(
+                    color = Color.White,
+                    fontSize = Tokens.TextDisplay,
+                    fontWeight = FontWeight.Bold,
+                    // Two letters is what tells sites apart. One initial makes
+                    // every g-domain the same tile from three metres.
+                    letterSpacing = TILE_LETTER_SPACING,
+                ),
             )
             if (isFavourite) {
-                BasicText(
-                    text = "★",
-                    style = TextStyle(color = palette.accent, fontSize = Tokens.TextBody),
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(Tokens.SpaceSm),
-                )
+                ) {
+                    NavIcons.Star(Color.White, filled = true)
+                }
             }
         }
         BasicText(
@@ -415,7 +440,7 @@ fun SiteTile(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = TextStyle(
-                color = if (focused) palette.accent else palette.onSurfaceMuted,
+                color = if (focused) palette.accent else palette.onSurface,
                 fontSize = Tokens.TextSmall,
             ),
             // The tile itself keeps its own colour on focus: filling it would
@@ -429,19 +454,23 @@ fun SiteTile(
  * Derived from the origin so a site keeps its colour between launches, and kept
  * dark enough that the letter on top stays legible.
  */
-private fun tileColour(origin: String, palette: Palette): Color {
+private fun tileColours(origin: String, palette: Palette): List<Color> {
     val hue: Float = ((origin.hashCode() % HUE_STEPS + HUE_STEPS) % HUE_STEPS).toFloat() / HUE_STEPS
-    return androidx.compose.ui.graphics.Color.hsl(
-        hue = hue * 360f,
-        saturation = if (palette.isLight) 0.45f else 0.35f,
-        // Dark enough in light mode to carry white text and to stand off the
-        // page, rather than being one more pale rectangle on a pale screen.
-        lightness = if (palette.isLight) 0.46f else 0.28f,
+    val saturation: Float = if (palette.isLight) 0.45f else 0.38f
+    // Dark enough in either palette to carry white letters, and never so dark
+    // that the tile becomes one more black rectangle on a black screen.
+    val lightness: Float = if (palette.isLight) 0.46f else 0.32f
+    return listOf(
+        Color.hsl(hue * 360f, saturation, lightness + GRADIENT_LIFT),
+        Color.hsl(hue * 360f, saturation, lightness - GRADIENT_LIFT),
     )
 }
 
 private const val HUE_STEPS: Int = 24
-private val TILE_HEIGHT = 96.dp
+private const val INITIALS: Int = 2
+private const val GRADIENT_LIFT: Float = 0.08f
+private val TILE_LETTER_SPACING = 2.sp
+private val TILE_HEIGHT = 120.dp
 private val BUTTON_SIZE = 48.dp
 private val SELECTED_BAR_HEIGHT = 40.dp
 private const val SELECTED_ALPHA: Float = 0.35f
