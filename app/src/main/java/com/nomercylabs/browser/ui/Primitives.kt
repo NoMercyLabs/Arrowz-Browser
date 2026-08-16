@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusRequester
@@ -49,6 +50,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+
+/**
+ * Lifts a raised surface off the page: a small shadow, and a hairline that does
+ * the work the shadow cannot. Applied before the background so the line sits on
+ * the edge of the fill rather than inside it.
+ */
+@Composable
+fun Modifier.raised(shape: RoundedCornerShape = RoundedCornerShape(Tokens.Radius)): Modifier {
+    val palette: Palette = LocalPalette.current
+    return this
+        .shadow(Tokens.Elevation, shape)
+        .border(Tokens.Hairline, palette.outline, shape)
+}
 
 /**
  * Focus is the entire visual language on a television. There is no hover and no
@@ -65,7 +79,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun Modifier.tvFocusable(
     focused: Boolean,
-    shape: RoundedCornerShape = RoundedCornerShape(Tokens.RadiusMd),
+    shape: RoundedCornerShape = RoundedCornerShape(Tokens.Radius),
     /**
      * Growing on focus works for a control with room around it and is wrong for
      * one that already spans its row: the address field grew into the buttons
@@ -87,6 +101,30 @@ fun Modifier.tvFocusable(
             color = if (focused) palette.focusRing else Color.Transparent,
             shape = shape,
         )
+}
+
+/**
+ * What a focused control is filled with.
+ *
+ * An outline alone is a thin line at three metres, and it competes with the
+ * hairline every raised surface already carries. A focused control takes the
+ * accent as its whole background instead, which is unmistakable from a sofa and
+ * needs no colour vision to read as "this one".
+ */
+@Composable
+fun focusFill(focused: Boolean, selected: Boolean = false): Color {
+    val palette: Palette = LocalPalette.current
+    return when {
+        focused -> palette.accent
+        selected -> palette.accentDeep.copy(alpha = SELECTED_ALPHA)
+        else -> palette.surfaceRaised
+    }
+}
+
+@Composable
+fun contentOn(focused: Boolean): Color {
+    val palette: Palette = LocalPalette.current
+    return if (focused) palette.onAccent else palette.onSurface
 }
 
 /**
@@ -112,13 +150,14 @@ fun IconButton(
         modifier = modifier
             .size(BUTTON_SIZE)
             .onFocusChanged { focused = it.isFocused }
-            .tvFocusable(focused, RoundedCornerShape(Tokens.RadiusSm))
-            .background(palette.surfaceRaised, RoundedCornerShape(Tokens.RadiusSm))
+            .tvFocusable(focused, RoundedCornerShape(Tokens.Radius))
+            .raised(RoundedCornerShape(Tokens.Radius))
+            .background(focusFill(focused), RoundedCornerShape(Tokens.Radius))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .semantics { this.contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
-        glyph(if (focused) palette.accent else palette.onSurface)
+        glyph(contentOn(focused))
     }
 }
 
@@ -174,13 +213,15 @@ fun TvTextField(
             .focusRequester(boxFocusRequester)
             .onFocusChanged { focused = it.isFocused }
             .tvFocusable(focused || editing, scaleOnFocus = false)
+            .height(BUTTON_SIZE)
+            .raised()
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = { onEditingChange(true) },
             )
-            .background(palette.surfaceRaised, RoundedCornerShape(Tokens.RadiusMd))
-            .padding(horizontal = Tokens.SpaceMd, vertical = Tokens.SpaceSm),
+            .background(palette.surfaceRaised, RoundedCornerShape(Tokens.Radius))
+            .padding(horizontal = Tokens.SpaceMd),
         contentAlignment = Alignment.CenterStart,
     ) {
         if (value.isEmpty()) {
@@ -254,10 +295,8 @@ fun ListRow(
         modifier = modifier
             .fillMaxWidth()
             .focusGroup()
-            .background(
-                if (selected) palette.accentDeep.copy(alpha = SELECTED_ALPHA) else palette.surfaceRaised,
-                RoundedCornerShape(Tokens.RadiusMd),
-            )
+            .raised()
+            .background(focusFill(focused, selected), RoundedCornerShape(Tokens.Radius))
             .padding(Tokens.SpaceXs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
@@ -270,7 +309,7 @@ fun ListRow(
                 .height(SELECTED_BAR_HEIGHT)
                 .background(
                     if (selected) palette.accent else Color.Transparent,
-                    RoundedCornerShape(Tokens.RadiusSm),
+                    RoundedCornerShape(Tokens.Radius),
                 ),
         )
 
@@ -291,17 +330,17 @@ fun ListRow(
                 text = title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
-                    color = if (focused) palette.accent else palette.onSurface,
-                    fontSize = Tokens.TextBody,
-                ),
+                style = TextStyle(color = contentOn(focused), fontSize = Tokens.TextBody),
             )
             if (subtitle.isNotEmpty()) {
                 BasicText(
                     text = subtitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextSmall),
+                    style = TextStyle(
+                        color = if (focused) palette.onAccent.copy(alpha = MUTED_ON_ACCENT) else palette.onSurfaceMuted,
+                        fontSize = Tokens.TextSmall,
+                    ),
                 )
             }
         }
@@ -353,7 +392,8 @@ fun SiteTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(TILE_HEIGHT)
-                .background(tileColour(origin, palette), RoundedCornerShape(Tokens.RadiusMd)),
+                .raised()
+                .background(tileColour(origin, palette), RoundedCornerShape(Tokens.Radius)),
             contentAlignment = Alignment.Center,
         ) {
             BasicText(
@@ -378,6 +418,8 @@ fun SiteTile(
                 color = if (focused) palette.accent else palette.onSurfaceMuted,
                 fontSize = Tokens.TextSmall,
             ),
+            // The tile itself keeps its own colour on focus: filling it would
+            // throw away the one thing that tells sites apart at a glance.
             modifier = Modifier.padding(top = Tokens.SpaceXs),
         )
     }
@@ -391,8 +433,10 @@ private fun tileColour(origin: String, palette: Palette): Color {
     val hue: Float = ((origin.hashCode() % HUE_STEPS + HUE_STEPS) % HUE_STEPS).toFloat() / HUE_STEPS
     return androidx.compose.ui.graphics.Color.hsl(
         hue = hue * 360f,
-        saturation = 0.35f,
-        lightness = if (palette.isLight) 0.72f else 0.28f,
+        saturation = if (palette.isLight) 0.45f else 0.35f,
+        // Dark enough in light mode to carry white text and to stand off the
+        // page, rather than being one more pale rectangle on a pale screen.
+        lightness = if (palette.isLight) 0.46f else 0.28f,
     )
 }
 
@@ -401,3 +445,4 @@ private val TILE_HEIGHT = 96.dp
 private val BUTTON_SIZE = 48.dp
 private val SELECTED_BAR_HEIGHT = 40.dp
 private const val SELECTED_ALPHA: Float = 0.35f
+private const val MUTED_ON_ACCENT: Float = 0.75f

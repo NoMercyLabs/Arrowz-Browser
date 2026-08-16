@@ -39,7 +39,9 @@ import com.nomercylabs.browser.browser.UserAgents
 import androidx.webkit.WebViewAssetLoader
 import com.nomercylabs.browser.browser.PageState
 import com.nomercylabs.browser.browser.WebViewHost
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.focusProperties
 import com.nomercylabs.browser.chrome.HomeGrid
 import com.nomercylabs.browser.chrome.MenuOverlay
 import com.nomercylabs.browser.chrome.NavBar
@@ -752,7 +754,13 @@ private fun BrowserScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(LocalPalette.current.surface),
+                    .background(LocalPalette.current.surface)
+                    // While a surface is over the home screen, nothing here may
+                    // take focus. Without this the D-pad walks out of the menu
+                    // into the address bar behind it, and the menu is still on
+                    // screen with nothing in it focused.
+                    .focusGroup()
+                    .focusProperties { canFocus = chrome == ChromeSurface.None },
             ) {
                 NavBar(
                     currentUrl = page.url,

@@ -24,12 +24,23 @@ enum class ThemeMode { System, Light, Dark }
 data class Palette(
     val surface: Color,
     val surfaceRaised: Color,
+    /**
+     * A hairline around every raised surface.
+     *
+     * In light mode the raised colour is white on an almost-white page, and a
+     * shadow alone disappears on a television whose contrast is turned up. The
+     * line is what actually separates a control from the screen behind it.
+     */
+    val outline: Color,
     val onSurface: Color,
     val onSurfaceMuted: Color,
     val accent: Color,
     val accentDeep: Color,
     val danger: Color,
     val focusRing: Color,
+    /** Text and glyphs drawn on top of [accent], which a focused control fills
+     *  with. Contrast is the whole job; nothing subtle belongs here. */
+    val onAccent: Color,
     val isLight: Boolean,
 )
 
@@ -37,27 +48,35 @@ object Palettes {
 
     val Dark = Palette(
         surface = Color(0xFF0A0A0C),
-        surfaceRaised = Color(0xFF141419),
+        surfaceRaised = Color(0xFF16161C),
+        outline = Color(0x1FFFFFFF),
         onSurface = Color(0xFFF2F2F5),
         onSurfaceMuted = Color(0xFF9A9AA6),
         accent = Color(0xFFA78BFA),
         accentDeep = Color(0xFF7C3AED),
         danger = Color(0xFFF87171),
         focusRing = Color(0xFFA78BFA),
+        onAccent = Color(0xFF0A0A0C),
         isLight = false,
     )
 
     // The focus ring darkens in light mode: the pale violet that reads clearly
     // against near-black disappears against white at three metres.
     val Light = Palette(
-        surface = Color(0xFFFAFAFC),
-        surfaceRaised = Color(0xFFFFFFFF),
+        // Inverted against the obvious arrangement: the page is the bright
+        // surface and controls sit a step darker on it. White cards on a grey
+        // page read as paper on a desk, which is a document, not an interface;
+        // this reads as controls on a screen.
+        surface = Color(0xFFF7F7FA),
+        surfaceRaised = Color(0xFFE2E2EA),
+        outline = Color(0x1F000000),
         onSurface = Color(0xFF14141A),
         onSurfaceMuted = Color(0xFF5B5B66),
         accent = Color(0xFF6D28D9),
         accentDeep = Color(0xFF4C1D95),
         danger = Color(0xFFB91C1C),
         focusRing = Color(0xFF6D28D9),
+        onAccent = Color(0xFFFFFFFF),
         isLight = true,
     )
 }
@@ -75,8 +94,17 @@ object Tokens {
     val SpaceLg: Dp = 24.dp
     val SpaceXl: Dp = 40.dp
 
-    val RadiusSm: Dp = 6.dp
-    val RadiusMd: Dp = 12.dp
+    /**
+     * One radius for every chrome surface: buttons, the address field, list
+     * rows, tiles. Two radii in one row is the kind of mismatch that reads as
+     * carelessness long before anyone can name it.
+     */
+    val Radius: Dp = 10.dp
+
+    /** Lifts a control off the page. Kept small: a television is viewed flat and
+     *  a deep shadow reads as blur rather than as height. */
+    val Elevation: Dp = 3.dp
+    val Hairline: Dp = 1.dp
 
     // Two sizes and a quiet one for secondary lines. Anything below this is
     // unreadable from a sofa, so there is no smaller step to reach for.
@@ -91,7 +119,7 @@ object Tokens {
      * focus drift apart.
      */
     object Focus {
-        val RingWidth: Dp = 3.dp
+        val RingWidth: Dp = 2.dp
         val RingGap: Dp = 2.dp
         val Scale: Float = 1.06f
         const val TransitionMillis: Int = 150

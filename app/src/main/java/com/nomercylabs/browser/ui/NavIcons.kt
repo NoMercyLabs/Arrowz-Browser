@@ -5,141 +5,62 @@
 
 package com.nomercylabs.browser.ui
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.nomercylabs.browser.R
 
 /**
- * The icon set, drawn rather than imported.
+ * The icon set, from the NoMercy design system.
  *
- * Every glyph shares one 24dp box, one stroke weight and round caps, so the
- * chrome reads as one hand. Drawing them keeps the app free of any icon
- * dependency, which matters for an app whose size and dependency list are part
- * of the point.
+ * These are the designer's Moooom icons, copied unchanged as vector drawables:
+ * one 24dp grid, one 1.5 stroke weight, round caps. They are the same glyphs the
+ * rest of the ecosystem uses, so this browser reads as part of it rather than as
+ * a lookalike drawn by hand.
+ *
+ * Tinting happens at draw time, so one drawable serves both palettes and the
+ * focused and unfocused states.
  */
 object NavIcons {
 
     @Composable
-    fun Back(tint: Color) = Glyph(tint) { stroke, size ->
-        val mid: Float = size / 2f
-        drawLine(tint, Offset(size * 0.78f, mid), Offset(size * 0.22f, mid), stroke, StrokeCap.Round)
-        drawLine(tint, Offset(size * 0.22f, mid), Offset(size * 0.46f, mid - size * 0.24f), stroke, StrokeCap.Round)
-        drawLine(tint, Offset(size * 0.22f, mid), Offset(size * 0.46f, mid + size * 0.24f), stroke, StrokeCap.Round)
-    }
+    fun Back(tint: Color) = Glyph(R.drawable.ic_back, tint)
 
     @Composable
-    fun Reload(tint: Color) = Glyph(tint) { stroke, size ->
-        // An open arc rather than a closed circle, so it reads as motion at
-        // three metres rather than as a dot.
-        drawArc(
-            color = tint,
-            startAngle = 40f,
-            sweepAngle = 280f,
-            useCenter = false,
-            topLeft = Offset(size * 0.18f, size * 0.18f),
-            size = androidx.compose.ui.geometry.Size(size * 0.64f, size * 0.64f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round),
+    fun Reload(tint: Color) = Glyph(R.drawable.ic_reload, tint)
+
+    @Composable
+    fun Home(tint: Color) = Glyph(R.drawable.ic_home, tint)
+
+    @Composable
+    fun Tabs(tint: Color) = Glyph(R.drawable.ic_tabs, tint)
+
+    @Composable
+    fun Plus(tint: Color) = Glyph(R.drawable.ic_add, tint)
+
+    @Composable
+    fun Close(tint: Color) = Glyph(R.drawable.ic_close, tint)
+
+    /** Filled when the page is kept: at three metres a fill and an outline read
+     *  apart far better than two weights of the same outline. */
+    @Composable
+    fun Star(tint: Color, filled: Boolean) =
+        Glyph(if (filled) R.drawable.ic_star_filled else R.drawable.ic_star, tint)
+
+    @Composable
+    private fun Glyph(id: Int, tint: Color) {
+        Image(
+            painter = painterResource(id),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(tint),
+            modifier = Modifier.size(GLYPH_BOX),
         )
-        val head = Path().apply {
-            moveTo(size * 0.80f, size * 0.30f)
-            lineTo(size * 0.86f, size * 0.10f)
-            lineTo(size * 0.62f, size * 0.16f)
-            close()
-        }
-        drawPath(head, tint)
-    }
-
-    @Composable
-    fun Home(tint: Color) = Glyph(tint) { stroke, size ->
-        val roof = Path().apply {
-            moveTo(size * 0.15f, size * 0.48f)
-            lineTo(size * 0.5f, size * 0.16f)
-            lineTo(size * 0.85f, size * 0.48f)
-        }
-        drawPath(roof, tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
-        drawRect(
-            color = tint,
-            topLeft = Offset(size * 0.26f, size * 0.46f),
-            size = androidx.compose.ui.geometry.Size(size * 0.48f, size * 0.38f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round),
-        )
-    }
-
-    /** Two sheets, offset. The count rides beside it rather than inside it: a
-     *  number drawn into a 24dp box is unreadable across a room. */
-    @Composable
-    fun Tabs(tint: Color) = Glyph(tint) { stroke, size ->
-        drawRect(
-            color = tint,
-            topLeft = Offset(size * 0.30f, size * 0.16f),
-            size = androidx.compose.ui.geometry.Size(size * 0.54f, size * 0.48f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round),
-        )
-        drawRect(
-            color = tint,
-            topLeft = Offset(size * 0.16f, size * 0.36f),
-            size = androidx.compose.ui.geometry.Size(size * 0.54f, size * 0.48f),
-            style = Stroke(width = stroke, cap = StrokeCap.Round),
-        )
-    }
-
-    /** Filled when the page is kept: at three metres an outline and a fill read
-     *  apart far better than two shades of the same outline. */
-    @Composable
-    fun Star(tint: Color, filled: Boolean) = Glyph(tint) { stroke, size ->
-        val centre: Float = size / 2f
-        val outer: Float = size * 0.40f
-        val inner: Float = size * 0.17f
-        val star = Path()
-        for (point in 0 until 10) {
-            val radius: Float = if (point % 2 == 0) outer else inner
-            val angle: Double = Math.PI / 5.0 * point - Math.PI / 2.0
-            val x: Float = centre + (radius * kotlin.math.cos(angle)).toFloat()
-            val y: Float = centre + (radius * kotlin.math.sin(angle)).toFloat()
-            if (point == 0) star.moveTo(x, y) else star.lineTo(x, y)
-        }
-        star.close()
-        if (filled) {
-            drawPath(star, tint)
-        } else {
-            drawPath(star, tint, style = Stroke(width = stroke, cap = StrokeCap.Round))
-        }
-    }
-
-    @Composable
-    fun Plus(tint: Color) = Glyph(tint) { stroke, size ->
-        val mid: Float = size / 2f
-        drawLine(tint, Offset(size * 0.20f, mid), Offset(size * 0.80f, mid), stroke, StrokeCap.Round)
-        drawLine(tint, Offset(mid, size * 0.20f), Offset(mid, size * 0.80f), stroke, StrokeCap.Round)
-    }
-
-    @Composable
-    fun Close(tint: Color) = Glyph(tint) { stroke, size ->
-        drawLine(tint, Offset(size * 0.24f, size * 0.24f), Offset(size * 0.76f, size * 0.76f), stroke, StrokeCap.Round)
-        drawLine(tint, Offset(size * 0.76f, size * 0.24f), Offset(size * 0.24f, size * 0.76f), stroke, StrokeCap.Round)
-    }
-
-    @Composable
-    private fun Glyph(
-        tint: Color,
-        draw: androidx.compose.ui.graphics.drawscope.DrawScope.(stroke: Float, size: Float) -> Unit,
-    ) {
-        Canvas(modifier = Modifier.size(GLYPH_BOX)) {
-            val box: Float = this.size.minDimension
-            val stroke: Float = box * STROKE_RATIO
-            draw(stroke, box)
-        }
     }
 
     private val GLYPH_BOX = 24.dp
-
-    /** One weight across the set; a mixed-weight icon row reads as an accident. */
-    private const val STROKE_RATIO: Float = 0.085f
 }

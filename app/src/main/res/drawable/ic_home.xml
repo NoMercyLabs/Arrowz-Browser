@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Moooom icon set, NoMercy design system. Copied unchanged from
+  content/nomercy-icons; the geometry is the designer's, not ours.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4 9.995V15.4c0 1.5 0 2.25.382 2.776q.187.256.442.442C5.35 19 6.1 19 7.6 19h8.8c1.5 0 2.25 0 2.776-.382q.256-.187.442-.442C20 17.65 20 16.9 20 15.4V9.995c0-.865 0-1.297-.162-1.674a2 2 0 0 0-.196-.354c-.234-.337-.6-.566-1.334-1.024l-4.4-2.75c-.822-.514-1.233-.771-1.685-.822a2 2 0 0 0-.446 0c-.452.05-.863.308-1.685.821l-4.4 2.75h0c-.733.459-1.1.688-1.334 1.025a2 2 0 0 0-.196.354C4 8.698 4 9.13 4 9.995"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
