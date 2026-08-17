@@ -2,17 +2,16 @@
 
 ## Where the set stands
 
-All six slots are filled. Four came back from the designer at exactly the
-declared size; the square pair is built here from the wide lockup, and is a
-placeholder in the sense that it uses the mark rather than being drawn as one.
+All six slots are filled with the designer's own artwork. Nothing here is
+generated or reconstructed any more.
 
 | Asset | Status |
 |---|---|
 | `launcher-banner-640x360` | In, as `app/src/main/res/drawable-xhdpi/banner.png` |
 | `play-tv-banner-1280x720` | In, as `docs/store/tv-banner-1280x720.png` |
 | `play-feature-graphic-1024x500` | In, as `docs/store/feature-graphic-1024x500.png` |
-| `play-icon-512` | Built by `tools/square-mark.py` from the wide lockup |
-| `adaptive-icon-foreground-432` | Built by `tools/square-mark.py`, transparent, inside the safe circle |
+| `play-icon-512` | The delivered `store-logo.png`, reduced once from 1024 |
+| `adaptive-icon-foreground-432` | In, as delivered, at five launcher densities |
 | `screenshot-1920x1080` | Slot filled by three real captures; the delivered art is kept as `key-art-1920x1080.png` |
 
 The wide artwork is right. The accent samples as `#FF0055` exactly, which is the
@@ -23,39 +22,20 @@ The 1920×1080 is key art, not a screenshot, so it is kept as
 running for that slot, and those already exist in `docs/store/`. The key art is
 worth having anyway.
 
-### The square icon, which is one problem and not two
+### The square icon
 
-**Now built rather than waiting.** `tools/square-mark.py` takes the one petal
-the wide lockup leaves uncut and rotates it four times about the centre, which
-is how the artwork already arranges them, so nothing is invented. Measured on
-the result: zero visible pixels fall outside the 66% safe circle, the furthest
-reaching 142 where the limit is 143, and the foreground carries real
-transparency. A drawn-square original would still be better than a reconstructed
-one, and everything below says why the delivered pair could not be used.
+The delivered artwork is used as delivered. `docs/store/icon-512.png` is
+`store-logo.png` reduced once from 1024 with its transparent corners flattened
+onto `#090104`, because Play rejects any alpha in that slot. The adaptive
+foreground ships as delivered at five launcher densities, so no device
+downscales a 432 image at draw time.
 
-`play-icon-512` and `adaptive-icon-foreground-432` are the same image at two
-sizes — comparing them pixel for pixel gives a mean difference of 0.8 out of
-255. So they need one fix between them, not two.
-
-That image is a crop of the wide composition, and the crop lands mid-wordmark,
-so the square assets show a lone "A" up in the top left with the petals cut off
-at the right and bottom edges. Two things follow.
-
-**The A does not survive the launcher mask.** Measured against the 66% safe
-circle: 31% of the glyph's pixels fall outside it, and its furthest corner
-reaches 179px from centre where the limit is 143. On any launcher drawing a
-circle, the top left of the A is sliced off.
-
-**The foreground layer is fully opaque**, alpha 255 across all 432×432. An
-adaptive foreground has to be transparent where the background should show,
-because the launcher composites the two layers and slides them against each
-other during the open animation. Opaque means the background layer never
-appears and the parallax reveals a hard edge.
-
-So the square mark wants composing square from the start rather than cropped
-out of the banner: the petal cluster centred, the wordmark either dropped or
-replaced by a single centred letterform, everything inside the circle, and the
-432 exported on transparency.
+One measured consequence, recorded because it decides what a phone launcher
+draws rather than what the file looks like. The foreground is fully opaque, all
+186,624 pixels, so 65.8% of it lies outside the 66% safe circle that a circular
+mask keeps. On a launcher drawing a circle, the corners go, and the "A" is in
+one of them. Televisions use the banner rather than this icon, so the effect is
+confined to phones and tablets.
 
 ### The tile is darker than the shelf it sits on
 
