@@ -2,7 +2,7 @@
 # Copyright (c) 2026 NoMercy Labs
 # SPDX-License-Identifier: MIT
 #
-# Send remote keys to NoMercy Browser on a device, and to nothing else.
+# Send remote keys to Arrowz Browser on a device, and to nothing else.
 #
 # Every key is checked against the foreground activity first. A television is
 # somebody's television: keys injected while another app is in front land in
@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-APPLICATION_ID="com.nomercylabs.browser.debug"
+APPLICATION_ID="com.nomercylabs.arrowz.debug"
 DEVICE=""
 SETTLE="1.2"
 SHOT=""
@@ -23,7 +23,7 @@ Usage: ./tv-drive.sh -d <serial> [options] <key>...
 
   -d, --device <serial>   Target device. Required.
   -p, --package <id>      Foreground package to require.
-                          Default com.nomercylabs.browser.debug
+                          Default com.nomercylabs.arrowz.debug
   -w, --wait <seconds>    Settle time between keys. Default 1.2
   -s, --shot <path>       Screenshot to this path when the last key is done.
       --status            Print the foreground activity and exit.

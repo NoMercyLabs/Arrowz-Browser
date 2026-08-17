@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Tracks Palettes.Dark in ui/Tokens.kt. Both come from the Arrowz mark. -->
 <resources>
-    <color name="surface">#0A0A0C</color>
-    <color name="accent">#8CA3B8</color>
+    <color name="surface">#090104</color>
+    <color name="accent">#FF0055</color>
 </resources>

@@ -1,4 +1,4 @@
-# NoMercy Browser
+# Arrowz Browser
 
 A web browser for Android TV that is actually operable from a remote, plays media the way a real browser does, and sends nothing about your browsing anywhere.
 

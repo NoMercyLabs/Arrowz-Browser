@@ -24,7 +24,7 @@ if (!serial || !url) {
   process.exit(2);
 }
 
-const PACKAGE = 'com.nomercylabs.browser.debug';
+const PACKAGE = 'com.nomercylabs.arrowz.debug';
 const KEYS = { down: 20, ok: 23, back: 4, enter: 66 };
 
 function adb(...args) {

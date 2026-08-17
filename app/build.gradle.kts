@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.nomercylabs.browser"
+    namespace = "com.nomercylabs.arrowz"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.nomercylabs.browser"
+        applicationId = "com.nomercylabs.arrowz"
         minSdk = 28
         targetSdk = 36
         versionCode = 1

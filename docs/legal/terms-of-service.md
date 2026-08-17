@@ -1,11 +1,11 @@
 # Terms of service
 
-**NoMercy Browser** for Android TV
+**Arrowz Browser** for Android TV
 Published by NoMercy Labs. Last updated 16 August 2026.
 
 ## What this is
 
-NoMercy Browser is a web browser you install and run on your own device. It is free, it is open source under the MIT license, and using it does not create an account or any ongoing relationship with us.
+Arrowz Browser is a web browser you install and run on your own device. It is free, it is open source under the MIT license, and using it does not create an account or any ongoing relationship with us.
 
 By installing or using the app you accept these terms. If you do not accept them, do not install it.
 

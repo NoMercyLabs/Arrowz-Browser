@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NoMercy Browser"
+rootProject.name = "Arrowz Browser"
 include(":app")

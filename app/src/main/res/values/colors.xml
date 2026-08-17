@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    The window's colours, which are painted before Compose has drawn a frame.
+    They must track Palettes.Light in ui/Tokens.kt exactly, or the app flashes
+    the wrong colour on every launch. Both come from the Arrowz mark.
+-->
 <resources>
-    <color name="surface">#F7F7FA</color>
-    <color name="accent">#41556B</color>
-    <color name="icon_background">#0A0A0C</color>
+    <color name="surface">#FAF7F8</color>
+    <color name="accent">#990033</color>
+    <color name="icon_background">#090104</color>
 </resources>

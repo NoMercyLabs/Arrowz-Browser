@@ -1,8 +1,8 @@
-# Play listing — NoMercy Browser
+# Play listing — Arrowz Browser
 
 Everything Google asks for at submission, written down so the answers are the same every time and so the declarations can be checked against the code rather than remembered.
 
-Package `com.nomercylabs.browser`, published under the NoMercy Labs developer account, Android TV only.
+Package `com.nomercylabs.arrowz`, published under the NoMercy Labs developer account, Android TV only.
 
 ## Assets
 
@@ -24,7 +24,7 @@ A private browser for Android TV. No trackers, no accounts, six remote keys.
 
 ## Full description
 
-NoMercy Browser is a web browser built for a television and a remote, rather than a phone browser with the buttons moved around.
+Arrowz Browser is a web browser built for a television and a remote, rather than a phone browser with the buttons moved around.
 
 **It works with the remote you have.** Everything is reachable with the four arrows, OK and BACK. Nothing needs a color button, a mouse, or a phone app. Pages you can navigate by focus are walked link by link with a focus ring you can see from the sofa; pages you cannot are given a pointer that moves and clicks. It chooses for you, and a long press on OK overrules it.
 
@@ -61,7 +61,7 @@ The expected outcome is a high age rating. That is correct for a browser and is 
 
 ## Privacy policy URL
 
-`docs/legal/privacy-policy.md` in this repository is the source. It needs a public URL before submission; `nomercy.tv/labs/browser/privacy` is the obvious home.
+`docs/legal/privacy-policy.md` in this repository is the source. It needs a public URL before submission; `nomercy.tv/labs/arrowz/privacy` is the obvious home.
 
 ## Other console requirements
 

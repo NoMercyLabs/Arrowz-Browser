@@ -3,7 +3,7 @@
     <!-- WebView reads isLightTheme to decide what prefers-color-scheme reports
          to a page once algorithmic darkening is allowed. Added from API 29, so
          it is qualified rather than declared against minSdk 28. -->
-    <style name="Theme.NoMercyBrowser" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.ArrowzBrowser" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/surface</item>
         <item name="android:statusBarColor">@color/surface</item>
         <item name="android:navigationBarColor">@color/surface</item>

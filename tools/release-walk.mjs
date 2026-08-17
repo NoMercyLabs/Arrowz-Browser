@@ -17,7 +17,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 const serial = process.argv[2];
 const presses = Number(process.argv[3] ?? 8);
 const outDir = process.argv[4];
-const PACKAGE = 'com.nomercylabs.browser';
+const PACKAGE = 'com.nomercylabs.arrowz';
 
 mkdirSync(outDir, { recursive: true });
 
@@ -48,7 +48,7 @@ const url = process.argv[5];
 if (url) {
   adb(['shell', 'am', 'force-stop', PACKAGE]);
   sleep(1500);
-  adb(['shell', 'am', 'start', '-n', `${PACKAGE}/com.nomercylabs.browser.MainActivity`,
+  adb(['shell', 'am', 'start', '-n', `${PACKAGE}/com.nomercylabs.arrowz.MainActivity`,
        '-a', 'android.intent.action.VIEW', '-d', url]);
   sleep(10000);
 }

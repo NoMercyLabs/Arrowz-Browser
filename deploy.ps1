@@ -2,7 +2,7 @@
     Copyright (c) 2026 NoMercy Labs
     SPDX-License-Identifier: MIT
 
-    Build, install and launch NoMercy Browser on one or more Android TV devices.
+    Build, install and launch Arrowz Browser on one or more Android TV devices.
 
     .EXAMPLE
     ./deploy.ps1
@@ -43,7 +43,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
-$applicationId = 'com.nomercylabs.browser'
+$applicationId = 'com.nomercylabs.arrowz'
 $activity = '.MainActivity'
 
 if ($env:NM_TV_DEVICES) {

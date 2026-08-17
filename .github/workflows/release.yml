@@ -55,8 +55,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION="$(git rev-parse --short HEAD)"; fi
           mkdir -p release
-          cp app/build/outputs/bundle/release/app-release.aab "release/nomercy-browser-$VERSION.aab"
-          cp app/build/outputs/apk/release/app-release.apk "release/nomercy-browser-$VERSION.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "release/arrowz-browser-$VERSION.aab"
+          cp app/build/outputs/apk/release/app-release.apk "release/arrowz-browser-$VERSION.apk"
           cd release
           sha256sum ./*.aab ./*.apk | sed 's| \./| |' > SHA256SUMS.txt
           cat SHA256SUMS.txt
@@ -65,7 +65,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: nomercy-browser-${{ steps.artifacts.outputs.version }}
+          name: arrowz-browser-${{ steps.artifacts.outputs.version }}
           path: release/
 
       # A workflow artifact expires and needs a GitHub login to fetch. A release
@@ -93,10 +93,10 @@ jobs:
           } > body.md
 
           gh release create "$GITHUB_REF_NAME" \
-            --title "NoMercy Browser ${GITHUB_REF_NAME#v}" \
+            --title "Arrowz Browser ${GITHUB_REF_NAME#v}" \
             --notes-file body.md \
-            release/nomercy-browser-*.aab \
-            release/nomercy-browser-*.apk \
+            release/arrowz-browser-*.aab \
+            release/arrowz-browser-*.apk \
             release/SHA256SUMS.txt
 
       # The secrets context is not available in a step-level if, so the check
@@ -122,7 +122,7 @@ jobs:
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.nomercylabs.browser
+          packageName: com.nomercylabs.arrowz
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: internal
           status: completed

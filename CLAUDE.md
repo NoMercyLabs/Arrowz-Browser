@@ -1,4 +1,4 @@
-# NoMercy Browser — working notes
+# Arrowz Browser — working notes
 
 A web browser for Android TV. NoMercyLabs product, published under NoMercy Labs. Standalone repository: nothing is shared with or copied from the NoMercy monorepo.
 

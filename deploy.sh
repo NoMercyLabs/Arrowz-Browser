@@ -2,11 +2,11 @@
 # Copyright (c) 2026 NoMercy Labs
 # SPDX-License-Identifier: MIT
 #
-# Build, install and launch NoMercy Browser on one or more Android TV devices.
+# Build, install and launch Arrowz Browser on one or more Android TV devices.
 
 set -euo pipefail
 
-APPLICATION_ID="com.nomercylabs.browser"
+APPLICATION_ID="com.nomercylabs.arrowz"
 ACTIVITY=".MainActivity"
 
 BUILD_TYPE="debug"

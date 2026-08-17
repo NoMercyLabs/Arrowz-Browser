@@ -34,7 +34,7 @@ function argValue(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
-const PACKAGE = 'com.nomercylabs.browser.debug';
+const PACKAGE = 'com.nomercylabs.arrowz.debug';
 const KEYS = { up: 19, down: 20, left: 21, right: 22, ok: 23, back: 4 };
 
 /** How many rows of the column get swept sideways. Each one costs a reload and
@@ -177,7 +177,7 @@ async function resetPage(socket) {
 async function main() {
   adb('shell', 'am', 'force-stop', PACKAGE);
   sleep(1500);
-  adb('shell', 'am', 'start', '-n', `${PACKAGE}/com.nomercylabs.browser.MainActivity`,
+  adb('shell', 'am', 'start', '-n', `${PACKAGE}/com.nomercylabs.arrowz.MainActivity`,
       '-a', 'android.intent.action.VIEW', '-d', url);
   sleep(9000);
 

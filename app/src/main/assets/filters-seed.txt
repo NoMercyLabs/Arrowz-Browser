@@ -1,4 +1,4 @@
-! NoMercy Browser — seed filter list
+! Arrowz Browser — seed filter list
 ! Copyright (c) 2026 NoMercy Labs
 ! SPDX-License-Identifier: MIT
 !

@@ -4,7 +4,7 @@
 # The pattern reaches nested classes as well, which matters: the media bridge's
 # page interface is MediaSessionBridge$PageInterface, and the seeds report in
 # build/outputs/mapping confirms its methods survive alongside FormBridge's.
--keepclassmembers class com.nomercylabs.browser.**.*Bridge {
+-keepclassmembers class com.nomercylabs.arrowz.**.*Bridge {
     @android.webkit.JavascriptInterface <methods>;
 }
 

@@ -1,6 +1,6 @@
 # Privacy policy
 
-**NoMercy Browser** for Android TV
+**Arrowz Browser** for Android TV
 Published by NoMercy Labs. Last updated 17 August 2026.
 
 ## The short version

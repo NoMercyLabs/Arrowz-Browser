@@ -4,9 +4,9 @@
   SPDX-License-Identifier: MIT
 
   The debug build installs beside the release one, under its own application id.
-  Without its own label both tiles read "NoMercy Browser" in the launcher and
+  Without its own label both tiles read "Arrowz Browser" in the launcher and
   there is no way to tell which one is being launched.
 -->
 <resources>
-    <string name="app_name">NoMercy Browser (dev)</string>
+    <string name="app_name">Arrowz Browser (dev)</string>
 </resources>
