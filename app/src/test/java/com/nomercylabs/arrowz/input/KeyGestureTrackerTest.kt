@@ -76,4 +76,37 @@ class KeyGestureTrackerTest {
 
         assertEquals(KeyGestureTracker.Release.Acted(KeyPhase.Up), tracker.onUp(RemoteKey.Back))
     }
+
+    // What a real remote sends for BACK: one press, no long-press flag, and no
+    // auto-repeat behind it. Both of the routes onDown can recognise a hold by
+    // are absent, so the hold has to be found from the press alone or the menu
+    // is unreachable from the remote.
+    @Test
+    fun aHoldIsRecognisedWithNoRepeatAndNoFlag() {
+        val tracker = KeyGestureTracker()
+        tracker.onDown(RemoteKey.Back, nowMillis = 0, repeatCount = 0)
+
+        assertEquals(KeyPhase.LongPress, tracker.onHoldElapsed(RemoteKey.Back))
+    }
+
+    @Test
+    fun aHoldFiresOnceAndItsReleaseIsSwallowed() {
+        val tracker = KeyGestureTracker()
+        tracker.onDown(RemoteKey.Back, nowMillis = 0, repeatCount = 0)
+        tracker.onHoldElapsed(RemoteKey.Back)
+
+        assertNull(tracker.onHoldElapsed(RemoteKey.Back))
+        assertEquals(KeyGestureTracker.Release.Swallowed, tracker.onUp(RemoteKey.Back))
+    }
+
+    // The timer outlives a quick press. Firing for a key already released would
+    // open the menu after a plain BACK had already acted.
+    @Test
+    fun aHoldThatElapsesAfterTheKeyIsReleasedDoesNothing() {
+        val tracker = KeyGestureTracker()
+        tracker.onDown(RemoteKey.Back, nowMillis = 0, repeatCount = 0)
+        tracker.onUp(RemoteKey.Back)
+
+        assertNull(tracker.onHoldElapsed(RemoteKey.Back))
+    }
 }

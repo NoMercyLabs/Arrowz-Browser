@@ -81,6 +81,27 @@ class KeyGestureTracker(private val longPressMillis: Long = DEFAULT_LONG_PRESS_M
         return if (press.longPressFired) Release.Swallowed else Release.Acted(KeyPhase.Up)
     }
 
+    /**
+     * The hold, recognised from the press itself rather than from traffic.
+     *
+     * [onDown] can only notice a hold two ways: the platform sets its long-press
+     * flag, or it sends auto-repeats the timer above can measure. BACK gives
+     * neither on every remote — the flag is only set for a key someone called
+     * `startTracking` on, which the dispatchKeyEvent path never sees, and BACK
+     * does not auto-repeat. One ACTION_DOWN arrives and then nothing until the
+     * release, so both routes sit waiting for events that never come and a hold
+     * is delivered as an ordinary press.
+     *
+     * A caller schedules this at the threshold instead. Still pure: whether the
+     * key is still down is answered from state already here.
+     */
+    fun onHoldElapsed(key: RemoteKey): KeyPhase? {
+        val press: Press = presses[key] ?: return null
+        if (press.longPressFired) return null
+        press.longPressFired = true
+        return KeyPhase.LongPress
+    }
+
     /** A key held while the app leaves the foreground never receives its up. */
     fun clear() = presses.clear()
 

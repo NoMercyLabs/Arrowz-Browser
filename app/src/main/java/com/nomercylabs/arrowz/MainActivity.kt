@@ -149,6 +149,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var pageContainer: FrameLayout
     private val cursor = CursorState()
     private val gestures = KeyGestureTracker()
+    private val holdTimers: MutableMap<RemoteKey, Runnable> = mutableMapOf()
     private var chrome: ChromeSurface by mutableStateOf(ChromeSurface.None)
 
     /** Whether the address field has the system keyboard up. While it does, the
@@ -1167,8 +1168,9 @@ class MainActivity : ComponentActivity() {
         val phase: KeyPhase? = when (event.action) {
             KeyEvent.ACTION_DOWN ->
                 gestures.onDown(key, event.eventTime, event.repeatCount, event.isLongPress)
+                    ?.also { if (it == KeyPhase.Down) scheduleHold(key) }
 
-            KeyEvent.ACTION_UP -> when (val release = gestures.onUp(key)) {
+            KeyEvent.ACTION_UP -> when (val release = gestures.onUp(key).also { cancelHold(key) }) {
                 is KeyGestureTracker.Release.Acted -> release.phase
 
                 // Eaten deliberately: the long press already acted, and passing
@@ -1222,6 +1224,34 @@ class MainActivity : ComponentActivity() {
         // hold opened the menu and the browser vanished behind it.
         if (command == null) return key == RemoteKey.Back || super.dispatchKeyEvent(event)
         return route(command) || key == RemoteKey.Back || super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * The clock behind a hold, for the two keys a hold means something on.
+     *
+     * BACK is the one that needed it. It carries no long-press flag on this path
+     * and does not auto-repeat, so the tracker saw a single ACTION_DOWN and then
+     * nothing until the release: every hold arrived as an ordinary press and the
+     * menu was unreachable from the remote. Neither the flag nor the repeats can
+     * be relied on, so the threshold is timed here from the press itself.
+     *
+     * Directions are left out deliberately. A hold there means "keep moving",
+     * which the cursor already runs on its own clock.
+     */
+    private fun scheduleHold(key: RemoteKey) {
+        if (key !in HOLD_KEYS) return
+        cancelHold(key)
+        val timer = Runnable {
+            holdTimers.remove(key)
+            val phase: KeyPhase = gestures.onHoldElapsed(key) ?: return@Runnable
+            route(KeyDispatcher.dispatch(key, phase, browserState()))
+        }
+        holdTimers[key] = timer
+        window.decorView.postDelayed(timer, KeyGestureTracker.DEFAULT_LONG_PRESS_MILLIS)
+    }
+
+    private fun cancelHold(key: RemoteKey) {
+        holdTimers.remove(key)?.let { window.decorView.removeCallbacks(it) }
     }
 
     private fun route(command: Command?): Boolean = when (command) {
@@ -1606,6 +1636,9 @@ class MainActivity : ComponentActivity() {
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
+
+        /** The keys where holding means something other than repeating. */
+        val HOLD_KEYS: Set<RemoteKey> = setOf(RemoteKey.Back, RemoteKey.Center)
 
         /** The two surfaces that hold a web field's value. Moving between them
          *  keeps it; leaving for anything else discards it. */
