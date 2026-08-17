@@ -1228,31 +1228,35 @@ class MainActivity : ComponentActivity() {
         }
 
         Command.Activate -> {
-            // A field already holding focus is the common case in focus mode:
-            // the spatial search focused it on the way in, so the page reported
-            // it long before this press and no new report is coming. Opening
-            // from what is focused rather than waiting for a focus is also what
-            // keeps OK on a select from opening the page's own dropdown, which
-            // is the widget a D-pad cannot operate.
-            val alreadyFocused: FormField? = host?.formBridge?.focusedField
-            if (alreadyFocused != null) {
-                openField(alreadyFocused)
-            } else {
-                // Recorded before the press lands. A field focus arriving
-                // shortly after this is the viewer's; one arriving on its own is
-                // the page focusing its own search box on load, and interrupting
-                // for that is what makes a browser raise a keyboard over every
-                // home page it opens.
-                host?.formBridge?.noteActivation()
-                if (inputMode == InputMode.Focus) {
-                    spatial.activate { x, y ->
-                        host?.view?.let { view ->
-                            TouchSynthesizer.tap(view, CursorPosition(x, y))
-                        }
+            /**
+             * Always a press, never a shortcut through what the page last
+             * reported.
+             *
+             * This used to open whichever field the bridge remembered, because
+             * the spatial search focused a field on the way in and no new report
+             * was coming. That stopped being true when arriving at a field
+             * stopped giving it DOM focus — which is what keeps the system
+             * keyboard down — and the remembered field became a stale record of
+             * something edited minutes ago.
+             *
+             * Measured on the 8000 across a page of every input type: OK on the
+             * second field reopened the first, so the first was typed into twice
+             * and the other eight received nothing at all.
+             */
+            // Recorded before the press lands. A field focus arriving shortly
+            // after this is the viewer's; one arriving on its own is the page
+            // focusing its own search box on load, and interrupting for that is
+            // what makes a browser raise a keyboard over every home page it
+            // opens.
+            host?.formBridge?.noteActivation()
+            if (inputMode == InputMode.Focus) {
+                spatial.activate { x, y ->
+                    host?.view?.let { view ->
+                        TouchSynthesizer.tap(view, CursorPosition(x, y))
                     }
-                } else {
-                    host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
                 }
+            } else {
+                host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
             }
             true
         }

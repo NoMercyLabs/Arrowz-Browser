@@ -56,3 +56,29 @@ the sweep only ever steps right from a column stop and they sit left of one:
 `f-check` is one LEFT from `f-radio-1`, `f-button` is two LEFT from `f-submit`,
 and `f-fakebutton` is one UP from there. Every control on the page can be
 reached with the four arrows.
+
+## The form overlay, and where its harness stands
+
+`tools/form-drive.mjs` places focus on each field in turn, presses OK, types,
+commits through the sheet's Done row, and reads back what the page received --
+the value, and whether the page's own script saw `input` and `change`, because a
+framework that never sees those has been handed nothing.
+
+What it established, on the 8000, watched on screen: the sheet opens for every
+field type, carrying the field's resolved label, its validity note, the Done row
+and the dictation button, and committed values do reach the page -- telephone,
+password and the required field all held their text afterwards.
+
+What it does not yet do is report that reliably. Two harness faults are already
+fixed and written into the file: typing on a fixed delay put characters into a
+sheet before it existed, so a run came out shifted by a field; and sending ENTER
+does not commit, because the field's Go action belongs to the IME, so the sheet
+stayed open and every later press went into it. Committing through Done is
+correct and the run still reports nothing arriving.
+
+The obstacle is specific: from outside the app there is no signal that says the
+sheet is up or that a commit has finished. `document.activeElement` answers the
+first question only after the tap has already landed, and the second has no
+answer at all, so each attempt costs a full device round trip to find out. A
+reliable version needs the app to say so — a testing-only report the harness can
+wait on — rather than more guessing at delays from the outside.
