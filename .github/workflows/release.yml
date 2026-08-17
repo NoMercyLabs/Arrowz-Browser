@@ -8,6 +8,12 @@ on:
 jobs:
   bundle:
     runs-on: ubuntu-latest
+    # Creating the release and attaching the artifacts to it. Without this the
+    # default token is read-only on repositories configured that way, and the
+    # publish step fails after a successful build, which is the most annoying
+    # place for a permission to be missing.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
 
@@ -30,19 +36,68 @@ jobs:
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
 
-      - name: Build AAB
+      # Both, and signed with the same key. The AAB is what Play takes; the APK
+      # is what somebody sideloads onto a television Play has not reached, and a
+      # release that ships only the bundle leaves those people with nothing.
+      - name: Build AAB and APK
         env:
           NM_KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
           NM_KEYSTORE_PASSWORD: ${{ secrets.NM_KEYSTORE_PASSWORD }}
           NM_KEY_ALIAS: ${{ secrets.NM_KEY_ALIAS }}
           NM_KEY_PASSWORD: ${{ secrets.NM_KEY_PASSWORD }}
-        run: ./gradlew bundleRelease
+        run: ./gradlew bundleRelease assembleRelease
 
-      - name: Upload AAB
+      # Named for the version rather than "app-release", so a file sitting in
+      # somebody's downloads folder still says what it is a year from now.
+      - name: Name and checksum the artifacts
+        id: artifacts
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION="$(git rev-parse --short HEAD)"; fi
+          mkdir -p release
+          cp app/build/outputs/bundle/release/app-release.aab "release/nomercy-browser-$VERSION.aab"
+          cp app/build/outputs/apk/release/app-release.apk "release/nomercy-browser-$VERSION.apk"
+          cd release
+          sha256sum ./*.aab ./*.apk | sed 's| \./| |' > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: app-release-aab
-          path: app/build/outputs/bundle/release/app-release.aab
+          name: nomercy-browser-${{ steps.artifacts.outputs.version }}
+          path: release/
+
+      # A workflow artifact expires and needs a GitHub login to fetch. A release
+      # asset does neither, which is what "downloadable" has to mean.
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The section for this version, not whatever sits at the top of the
+          # file: Unreleased is above it and says nothing.
+          awk -v want="## [${GITHUB_REF_NAME#v}]" \
+            'index($0, want) == 1 { inside = 1; next } /^## \[/ { inside = 0 } inside' \
+            CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+
+          {
+            cat notes.md
+            echo
+            echo '## Checksums'
+            echo
+            echo '```'
+            cat release/SHA256SUMS.txt
+            echo '```'
+          } > body.md
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "NoMercy Browser ${GITHUB_REF_NAME#v}" \
+            --notes-file body.md \
+            release/nomercy-browser-*.aab \
+            release/nomercy-browser-*.apk \
+            release/SHA256SUMS.txt
 
       # The secrets context is not available in a step-level if, so the check
       # has to become a step output. Using it directly makes GitHub reject the

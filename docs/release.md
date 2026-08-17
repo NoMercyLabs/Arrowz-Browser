@@ -37,6 +37,22 @@ Set these on the GitHub repository once it exists:
 | `NM_KEY_PASSWORD` | key password, same as the keystore password |
 | `PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account JSON, once the listing exists |
 
+## What a tag produces
+
+Pushing a `v*` tag builds both artifacts from the same signed build and attaches
+them to a GitHub release, along with their SHA-256 sums:
+
+- `nomercy-browser-<version>.aab` — what Play takes.
+- `nomercy-browser-<version>.apk` — what somebody sideloads onto a television
+  Play has not reached. A release that ships only the bundle leaves those people
+  with nothing.
+- `SHA256SUMS.txt` — so a download can be checked against what the pipeline
+  built rather than trusted because it came from the right page.
+
+They are release assets rather than workflow artifacts on purpose: a workflow
+artifact expires and needs a GitHub login to fetch, which is not what
+downloadable means.
+
 ## Track policy
 
 Tag pushes build an AAB and publish to the **internal** track only. Promotion to production is a manual decision in the Play Console.
