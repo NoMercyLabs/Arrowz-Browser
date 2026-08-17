@@ -88,6 +88,8 @@ object KeyDispatcher {
             state.isFullscreen -> Command.ExitFullscreen
             state.isEditingText -> Command.StopEditing
             state.isSurfaceOpen -> Command.CloseChrome
+            // The page's own dialog is closer to the viewer than its history is.
+            state.isPageModalOpen -> Command.DismissPageModal
             state.isPageFieldFocused -> Command.ReleasePageFocus
             state.canGoBack -> Command.GoBack
             !state.isShowingHome -> Command.GoHome

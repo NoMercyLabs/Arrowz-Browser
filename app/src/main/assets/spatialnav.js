@@ -55,6 +55,17 @@
   var MIN_SIZE = 8;
   var identity = 0;
 
+  /**
+   * The element we last put focus on, remembered as an id rather than by the
+   * class we style it with.
+   *
+   * A framework that re-renders rewrites the class attribute and takes our ring
+   * with it, so the class is not evidence of anything a moment later. Measured
+   * on DuckDuckGo: focus was on the element we had put it on, and the class was
+   * already gone.
+   */
+  var focusedByUs = '';
+
   function styleSheet() {
     if (styleSheet.cached) return styleSheet.cached;
     try {
@@ -203,7 +214,57 @@
     });
   }
 
+  /**
+   * Puts the ring back if a re-render took it off.
+   *
+   * Focus stays on the element; only the class we style it with is rewritten,
+   * so the viewer is left on a page with no visible focus at all and no way to
+   * tell where the next press will go. Checked on every collect, which is once
+   * per press, so it heals before the next move.
+   */
+  function restoreRingIfStripped() {
+    if (!focusedByUs) return;
+    var element = find(focusedByUs);
+    if (!element) return;
+    if (!element.classList.contains(RING_CLASS)) {
+      element.classList.add(RING_CLASS);
+      element.setAttribute(RING_ATTRIBUTE, '');
+    }
+  }
+
+  /**
+   * An open modal, by the semantics the platform actually defines for one.
+   *
+   * `<dialog open>`, `aria-modal="true"` and `role="dialog"` are the whole
+   * vocabulary a page has for saying "this is in front and the rest is not".
+   * Where a page says it, focus is kept inside and BACK dismisses; where a page
+   * does not, this finds nothing and ordinary navigation applies.
+   *
+   * No site-specific selectors. DuckDuckGo's own slide-out panel declares none
+   * of these, so it is walked like any other part of the page rather than being
+   * special-cased into a modal it never claimed to be.
+   */
+  function openModal() {
+    var candidates = document.querySelectorAll(
+      'dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"]'
+    );
+    for (var index = 0; index < candidates.length; index++) {
+      var element = candidates[index];
+      if (element.getAttribute('aria-hidden') === 'true') continue;
+      var style = window.getComputedStyle(element);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      var box = element.getBoundingClientRect();
+      if (box.width < MIN_SIZE || box.height < MIN_SIZE) continue;
+      if (box.right <= 0 || box.bottom <= 0) continue;
+      if (box.left >= window.innerWidth || box.top >= window.innerHeight) continue;
+      return element;
+    }
+    return null;
+  }
+
   function collect() {
+    restoreRingIfStripped();
+    var modal = openModal();
     var elements = focusableElements();
     var results = [];
     var order = 0;
@@ -213,6 +274,12 @@
       // Fixedness is needed before the visibility test rather than after it: a
       // fixed element is judged against the viewport and everything else
       // against the document.
+      // With a modal in front, nothing behind it is a candidate. That is what
+      // makes it a trap rather than a suggestion: focus cannot walk out into
+      // the page underneath, which is where a D-pad otherwise strands somebody
+      // with the dialog still on screen and no way back into it.
+      if (modal && !modal.contains(element)) continue;
+
       var fixed = isFixed(element);
       if (!isVisible(element, fixed)) continue;
       if (!element.__nmSpatialId) {
@@ -235,6 +302,7 @@
     }
     return {
       elements: dropDuplicateLabels(results, elements),
+      modal: !!modal,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       scrollY: Math.round(window.scrollY),
@@ -267,6 +335,7 @@
 
     element.classList.add(RING_CLASS);
     element.setAttribute(RING_ATTRIBUTE, '');
+    focusedByUs = id;
     // preventScroll, because the Kotlin side has already decided whether a
     // screenful of scrolling is wanted and the browser's own scroll-into-view
     // would fight that decision.
@@ -313,24 +382,78 @@
       total: snapshot.elements.length,
       visible: visible,
       viewportHeight: snapshot.viewportHeight,
-      // A page that moves focus itself on load is one that will fight ours.
-      stealsFocus: document.activeElement !== document.body &&
-        document.activeElement !== document.documentElement
+      stealsFocus: pageMovedFocusItself()
     };
+  }
+
+  /**
+   * Whether the PAGE moved focus, as opposed to us.
+   *
+   * A page that grabs focus on load will keep fighting ours, so it keeps it.
+   * But the element carrying our own ring is our doing, and counting it made
+   * the probe report "this page steals focus" the moment we focused anything —
+   * so a second look at the same document could never upgrade to focus mode,
+   * because our own answer had become the evidence.
+   */
+  function pageMovedFocusItself() {
+    var active = document.activeElement;
+    if (!active || active === document.body || active === document.documentElement) return false;
+    if (focusedByUs && active.__nmSpatialId === focusedByUs) return false;
+    return true;
+  }
+
+  /**
+   * Dismisses an open modal the way the platform says to.
+   *
+   * Escape is what every dialog implementation listens for, including
+   * `<dialog>`'s own built-in handling, so this needs no knowledge of the site.
+   * Reported back so BACK can fall through to its next meaning when the page
+   * ignored it.
+   */
+  function dismissModal() {
+    var modal = openModal();
+    if (!modal) return false;
+
+    var target = document.activeElement && modal.contains(document.activeElement)
+      ? document.activeElement
+      : modal;
+    ['keydown', 'keyup'].forEach(function (type) {
+      target.dispatchEvent(new KeyboardEvent(type, {
+        key: 'Escape', code: 'Escape', keyCode: 27, which: 27,
+        bubbles: true, cancelable: true
+      }));
+    });
+    if (typeof modal.close === 'function') {
+      try { modal.close(); } catch (error) { /* not a <dialog> */ }
+    }
+    return true;
   }
 
   window.__nmSpatial = {
     collect: function () { return JSON.stringify(collect()); },
+    hasModal: function () { return openModal() ? 'true' : 'false'; },
+    dismissModal: dismissModal,
     probe: function () { return JSON.stringify(probe()); },
     focus: focusById,
     activate: activate,
     style: applyRingStyle,
+    /**
+     * Takes the ring off whatever is wearing it.
+     *
+     * Looked up by id rather than by the class, because the class is exactly
+     * what a re-render removes: searching for it found nothing while the ring
+     * was still drawn, so a stale ring stayed on screen next to a pointer and
+     * the two focus systems appeared to be running at once.
+     */
     clear: function () {
-      var element = document.querySelector('.' + RING_CLASS);
+      var element = focusedByUs ? find(focusedByUs) : null;
+      if (!element) element = document.querySelector('.' + RING_CLASS);
       if (element) {
         element.classList.remove(RING_CLASS);
         element.removeAttribute(RING_ATTRIBUTE);
+        try { element.blur(); } catch (error) { /* already gone */ }
       }
+      focusedByUs = '';
     }
   };
 })();

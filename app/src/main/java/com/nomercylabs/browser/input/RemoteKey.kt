@@ -88,6 +88,15 @@ data class BrowserState(
      * alarming thing an input can do.
      */
     val isPageFieldFocused: Boolean = false,
+    /**
+     * The page has a dialog in front, by its own declaration.
+     *
+     * BACK dismisses it before it walks history, because a dialog is a thing
+     * the viewer opened and closing it is what they mean. Only pages that say
+     * so are treated this way; one that draws a panel without declaring it gets
+     * ordinary navigation.
+     */
+    val isPageModalOpen: Boolean = false,
 ) {
     /**
      * Whether Compose owns the D-pad rather than the page.
@@ -110,6 +119,9 @@ sealed interface Command {
 
     /** Blur the page's own focused field, and nothing else. */
     data object ReleasePageFocus : Command
+
+    /** Close the dialog the page put in front, and nothing else. */
+    data object DismissPageModal : Command
     data object OpenMenu : Command
     data object GoBack : Command
 

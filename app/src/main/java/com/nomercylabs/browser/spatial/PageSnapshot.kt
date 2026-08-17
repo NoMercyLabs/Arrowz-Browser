@@ -16,6 +16,9 @@ data class PageSnapshot(
     val scrollX: Int = 0,
     val scrollWidth: Int = 0,
     val focusedId: String,
+    /** A dialog is in front, by the page's own declaration. Focus stays inside
+     *  it and BACK dismisses it before it means anything else. */
+    val hasModal: Boolean = false,
 )
 
 /** A focusable, plus whether it is pinned to the viewport and which row or
@@ -74,6 +77,7 @@ object PageSnapshotParser {
             scrollX = root.optInt("scrollX"),
             scrollWidth = root.optInt("scrollWidth"),
             focusedId = root.optString("focused"),
+            hasModal = root.optBoolean("modal"),
         )
     }
 

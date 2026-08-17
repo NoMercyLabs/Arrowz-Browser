@@ -692,6 +692,7 @@ class MainActivity : ComponentActivity() {
         // The page's own field, not ours. BACK releases it and stops there,
         // which is what every native app on this platform does.
         isPageFieldFocused = host?.formBridge?.focusedField != null,
+        isPageModalOpen = spatial.hasModal,
     )
 
     /**
@@ -1083,6 +1084,11 @@ class MainActivity : ComponentActivity() {
             true
         }
 
+        Command.DismissPageModal -> {
+            spatial.dismissModal()
+            true
+        }
+
         // Consumed here, and it must stay consumed: an unhandled long press is
         // not cancelled by the framework, so the following key-up fired a
         // second command and one hold produced both OpenMenu and ExitApp.
@@ -1167,9 +1173,13 @@ class MainActivity : ComponentActivity() {
                     )
                     return@runOnUiThread
                 }
-                // The pointer always works, so it is what a page starts with
-                // while we are still finding out what the page is.
-                setInputMode(InputMode.Cursor, remember = false)
+                // Deliberately does not switch to the pointer first. Doing that
+                // put a cursor on screen for a quarter of a second on every
+                // navigation and then took it away again, and mid-flip both
+                // systems were drawn at once — a pointer and a focus ring on the
+                // same frame, which is what "it does both" looks like. The mode
+                // in the viewer's hands stays as it is until the page has
+                // actually answered.
                 askThePageAgain(generation, attempt = 0)
             }
         }
@@ -1197,10 +1207,17 @@ class MainActivity : ComponentActivity() {
             if (generation != modeProbeGeneration) return@postDelayed
             spatial.probe { page ->
                 if (generation != modeProbeGeneration) return@probe
-                if (page != null && NavigabilityProbe.prefersFocusMode(page)) {
-                    setInputMode(InputMode.Focus, remember = false)
-                } else {
-                    askThePageAgain(generation, attempt + 1)
+                when {
+                    page != null && NavigabilityProbe.prefersFocusMode(page) ->
+                        setInputMode(InputMode.Focus, remember = false)
+
+                    attempt + 1 < MODE_PROBE_DELAYS_MS.size ->
+                        askThePageAgain(generation, attempt + 1)
+
+                    // Out of chances. A page that has drawn nothing focusable by
+                    // now is one the pointer should have, and this is the only
+                    // place the switch is made — after an answer, not before.
+                    else -> setInputMode(InputMode.Cursor, remember = false)
                 }
             }
         }, MODE_PROBE_DELAYS_MS[attempt])

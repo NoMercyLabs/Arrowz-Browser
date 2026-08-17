@@ -62,6 +62,22 @@ class KeyDispatcherTest {
         assertEquals(Command.ReleasePageFocus, back(state))
     }
 
+    // A dialog the viewer opened is closer to them than the page's history is,
+    // and a D-pad that walks out of one leaves them stranded with it still on
+    // screen and no way back into it.
+    @Test
+    fun backDismissesThePagesOwnDialogBeforeWalkingHistory() {
+        val state = BrowserState(isPageModalOpen = true, canGoBack = true)
+        assertEquals(Command.DismissPageModal, back(state))
+    }
+
+    // Our own surface still outranks the page's dialog: the sheet is on top.
+    @Test
+    fun aChromeSurfaceOverAPageDialogClosesFirst() {
+        val state = BrowserState(isSurfaceOpen = true, isPageModalOpen = true)
+        assertEquals(Command.CloseChrome, back(state))
+    }
+
     // Our own sheet sits above the page's field: one press leaves the sheet,
     // the next releases the field, the one after that leaves the page.
     @Test

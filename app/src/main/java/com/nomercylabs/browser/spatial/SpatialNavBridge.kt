@@ -28,6 +28,22 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
     private var lastFocusedId: String = ""
     private var lastSection: String = "document"
 
+    /**
+     * Whether the page had a dialog in front the last time it was asked.
+     *
+     * Cached because BACK has to decide in the moment and asking the page costs
+     * a round trip. Refreshed on every move, which is once per press.
+     */
+    var hasModal: Boolean = false
+        private set
+
+    /** Escape, which is the one thing every dialog implementation listens for,
+     *  including `<dialog>`'s own. Returns nothing; the next press finds out. */
+    fun dismissModal() {
+        evaluate("window.__nmSpatial && window.__nmSpatial.dismissModal()")
+        hasModal = false
+    }
+
     fun applyRingStyle(colorCss: String, widthPx: Int, radiusPx: Int) {
         evaluate("window.__nmSpatial && window.__nmSpatial.style('$colorCss', $widthPx, $radiusPx)")
     }
@@ -43,6 +59,7 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         onLeavePage: () -> Unit,
     ) {
         readSnapshot { snapshot ->
+            hasModal = snapshot?.hasModal == true
             if (snapshot == null || snapshot.elements.isEmpty()) {
                 onLeavePage()
                 return@readSnapshot
@@ -109,6 +126,7 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         evaluate("window.__nmSpatial && window.__nmSpatial.clear()")
         lastFocusedId = ""
         lastSection = "document"
+        hasModal = false
         sections.forget()
     }
 
