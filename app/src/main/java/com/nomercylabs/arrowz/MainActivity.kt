@@ -81,6 +81,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import com.nomercylabs.arrowz.chrome.HomeGrid
 import com.nomercylabs.arrowz.chrome.MenuOverlay
+import com.nomercylabs.arrowz.chrome.MenuSection
 import com.nomercylabs.arrowz.chrome.NavBar
 import com.nomercylabs.arrowz.chrome.TabList
 import com.nomercylabs.arrowz.cursor.CursorOverlay
@@ -153,6 +154,7 @@ class MainActivity : ComponentActivity() {
     private val gestures = KeyGestureTracker()
     private val holdTimers: MutableMap<RemoteKey, Runnable> = mutableMapOf()
     private var chrome: ChromeSurface by mutableStateOf(ChromeSurface.None)
+    private var menuSection: MenuSection by mutableStateOf(MenuSection.Root)
 
     /** Whether the address field has the system keyboard up. While it does, the
      *  IME owns every directional key, so BACK has to mean "close it". */
@@ -388,7 +390,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onPickSuggestion = { suggestion -> navigate(suggestion.url) },
                     onVoice = { startVoiceInput() },
-                    onMenu = { showChrome(ChromeSurface.Menu) },
+                    onMenu = { menuSection = MenuSection.Root; showChrome(ChromeSurface.Menu) },
                     inputModeIsFocus = when (inputMode) {
                         InputMode.ScreenReader -> null
                         InputMode.Focus -> true
@@ -432,6 +434,9 @@ class MainActivity : ComponentActivity() {
                     onCycleTheme = { cycleThemeMode() },
                     onSelectTab = { id -> selectTab(id) },
                     onCloseTab = { id -> closeTab(id) },
+                    onCloseActiveTab = { registry.active?.id?.let { id -> closeTab(id) } },
+                    menuSection = menuSection,
+                    onMenuSection = { next -> menuSection = next },
                     onNewTab = { newTab() },
                 )
             }
@@ -1126,6 +1131,8 @@ class MainActivity : ComponentActivity() {
         }
 
         chrome = surface
+        // A menu reopened always opens at its root.
+        if (surface != ChromeSurface.Menu) menuSection = MenuSection.Root
         if (surface != ChromeSurface.NavBar && surface != ChromeSurface.Find) editingText = false
 
         // The page keeps Android focus while a surface is over it, so every key
@@ -1364,7 +1371,16 @@ class MainActivity : ComponentActivity() {
         Command.OpenMenu -> { showChrome(ChromeSurface.Menu); true }
 
         Command.RevealNavBar -> { showChrome(ChromeSurface.NavBar); true }
-        Command.CloseChrome -> { showChrome(ChromeSurface.None); true }
+        // One level deep, so BACK pops before it closes. Closing the whole
+        // menu from a submenu is what makes a second level feel like a trapdoor.
+        Command.CloseChrome -> {
+            if (chrome == ChromeSurface.Menu && menuSection != MenuSection.Root) {
+                menuSection = MenuSection.Root
+            } else {
+                showChrome(ChromeSurface.None)
+            }
+            true
+        }
         Command.StopEditing -> { editingText = false; hideKeyboard(); true }
 
         Command.ExitFullscreen -> { fullscreen.exit(); true }
@@ -1739,6 +1755,9 @@ private fun BrowserScreen(
     onTabs: () -> Unit,
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
+    onCloseActiveTab: () -> Unit,
+    menuSection: MenuSection,
+    onMenuSection: (MenuSection) -> Unit,
     onNewTab: () -> Unit,
 ) {
     val configuration = LocalConfiguration.current
@@ -1909,14 +1928,12 @@ private fun BrowserScreen(
 
             ChromeSurface.Menu -> MenuOverlay(
                 canKeepPage = !showHome && page.url.isNotEmpty(),
-                isFavourite = isFavourite,
                 isDesktopSite = isDesktopSite,
                 themeMode = themeMode,
+                section = menuSection,
+                onSection = onMenuSection,
                 onNewTab = onNewTab,
-                onTabs = onTabs,
-                onHome = onHome,
-                onReload = onReload,
-                onToggleFavourite = onToggleFavourite,
+                onCloseTab = onCloseActiveTab,
                 onCycleTheme = onCycleTheme,
                 onBookmarks = onBookmarks,
                 onHistory = onHistory,
@@ -1929,6 +1946,7 @@ private fun BrowserScreen(
                 isFilteringOn = isFilteringOn,
                 blockedOnPage = blockedOnPage,
                 onToggleFiltering = onToggleFiltering,
+                versionName = BuildConfig.VERSION_NAME,
             )
 
             ChromeSurface.Tabs -> TabList(

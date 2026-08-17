@@ -29,27 +29,44 @@ import com.nomercylabs.arrowz.ui.ThemeMode
 import com.nomercylabs.arrowz.ui.Tokens
 
 /**
+ * Where the menu is. One level deep by design, so this is a place rather than a
+ * stack: BACK from anywhere below the root returns to it, never deeper.
+ */
+enum class MenuSection(val titleRes: Int) {
+    Root(R.string.menu_title),
+    Site(R.string.menu_site),
+    Library(R.string.menu_library),
+    Settings(R.string.menu_settings),
+    About(R.string.menu_about),
+}
+
+/**
  * What a long press on BACK opens.
  *
- * Long-press BACK was consuming the press and falling back to a plain BACK,
- * because leaving it unhandled made the framework fire a second command and one
- * hold quit the browser. This is what it was always meant to do.
+ * One level of submenus, and only one. The list was flat because a second level
+ * on a television costs two presses to reach and two to leave, and at eight rows
+ * nothing needed one. It reached thirteen with more owed, and at that length the
+ * flat list costs more than the second level saves: the bottom rows sit off the
+ * screen behind a scroll, and finding anything means reading every label from
+ * three metres. That rule was right for the menu it was written for and has
+ * outlived it.
  *
- * Every entry acts immediately. There is no submenu: a second level on a
- * television costs two presses to reach and two to leave, and nothing here needs
- * one.
+ * What stays on the top level is what you reach for mid-page. Find and closing a
+ * tab are worth no detour; a per-site toggle you set once is.
+ *
+ * Nothing here duplicates the address bar. Open tabs, the home screen, reload
+ * and keeping a page each have a button up there already, and a second door to
+ * every one of them was most of the length this menu was drowning in.
  */
 @Composable
 fun MenuOverlay(
     canKeepPage: Boolean,
-    isFavourite: Boolean,
     isDesktopSite: Boolean,
     themeMode: ThemeMode,
+    section: MenuSection,
+    onSection: (MenuSection) -> Unit,
     onNewTab: () -> Unit,
-    onTabs: () -> Unit,
-    onHome: () -> Unit,
-    onReload: () -> Unit,
-    onToggleFavourite: () -> Unit,
+    onCloseTab: () -> Unit,
     onCycleTheme: () -> Unit,
     onBookmarks: () -> Unit,
     onHistory: () -> Unit,
@@ -65,6 +82,7 @@ fun MenuOverlay(
     isFilteringOn: Boolean,
     blockedOnPage: Int,
     onToggleFiltering: () -> Unit,
+    versionName: String,
 ) {
     val palette: Palette = LocalPalette.current
 
@@ -74,10 +92,9 @@ fun MenuOverlay(
             .background(palette.surface.copy(alpha = SCRIM_ALPHA)),
     ) {
         // Outside the scroll. A title that scrolls away takes with it the only
-        // thing saying which list this is, and it left the heading sitting in
-        // the same column as the rows as though it were one of them.
+        // thing naming the list, and inside the column it read as another row.
         BasicText(
-            text = stringResource(R.string.menu_title),
+            text = stringResource(section.titleRes),
             style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextTitle),
             modifier = Modifier
                 .fillMaxWidth()
@@ -85,12 +102,29 @@ fun MenuOverlay(
                     start = Tokens.OverscanHorizontal,
                     end = Tokens.OverscanHorizontal,
                     top = Tokens.OverscanVertical,
-                    bottom = Tokens.SpaceMd,
+                    bottom = if (section == MenuSection.Root) Tokens.SpaceMd else Tokens.SpaceXs,
                 ),
         )
 
-        // The line is what separates them. A gap alone reads as loose spacing
-        // once the list is scrolled and a row sits directly beneath the title.
+        // Said rather than assumed. BACK closing the whole menu from a submenu
+        // is what makes a second level feel like a trapdoor, so it pops one
+        // level and the screen says so while you are down there.
+        if (section != MenuSection.Root) {
+            BasicText(
+                text = stringResource(R.string.menu_back_hint),
+                style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextSmall),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = Tokens.OverscanHorizontal,
+                        end = Tokens.OverscanHorizontal,
+                        bottom = Tokens.SpaceMd,
+                    ),
+            )
+        }
+
+        // The line is what separates the heading from the list. A gap alone
+        // reads as loose spacing once a row is scrolled up beneath the title.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -98,17 +132,10 @@ fun MenuOverlay(
                 .background(palette.outline),
         )
 
-        // Scrollable, and it has to be. The menu outgrew 1080p when privacy
-        // landed, and a row past the bottom edge of a television is a row nobody
-        // can reach at all — the same failure as a press that does nothing,
-        // arrived at from the other direction. Compose brings a focused child
-        // into view, so the D-pad walks the whole list without anything else
-        // changing.
-        //
         // The inset sits inside the scroll rather than around it. Outside, the
-        // viewport edge fell exactly on the last row's edge and clipped the
-        // shadow every raised surface carries, so the bottom row came out flat
-        // against the screen edge while every row above it was lifted.
+        // viewport edge fell on the last row's edge and clipped the shadow every
+        // raised surface carries, so the bottom row came out flat against the
+        // screen edge while every row above it was lifted.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -122,132 +149,160 @@ fun MenuOverlay(
                 ),
             verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
         ) {
-            ListRow(
-                title = stringResource(R.string.tabs_new),
-                subtitle = "",
-                selected = false,
-                onClick = onNewTab,
-                requestInitialFocus = true,
-            )
-            ListRow(
-                title = stringResource(R.string.nav_tabs),
-                subtitle = "",
-                selected = false,
-                onClick = onTabs,
-            )
-            ListRow(
-                title = stringResource(R.string.menu_home),
-                subtitle = "",
-                selected = false,
-                onClick = onHome,
-            )
+            when (section) {
+                MenuSection.Root -> {
+                    if (canKeepPage) {
+                        ListRow(
+                            title = stringResource(R.string.menu_find),
+                            subtitle = "",
+                            selected = false,
+                            onClick = onFind,
+                            requestInitialFocus = true,
+                        )
+                    }
+                    ListRow(
+                        title = stringResource(R.string.tabs_new),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onNewTab,
+                        requestInitialFocus = !canKeepPage,
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_close_tab),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onCloseTab,
+                    )
+                    if (canKeepPage) {
+                        ListRow(
+                            title = stringResource(R.string.menu_site),
+                            subtitle = stringResource(R.string.menu_site_summary),
+                            selected = false,
+                            onClick = { onSection(MenuSection.Site) },
+                        )
+                    }
+                    ListRow(
+                        title = stringResource(R.string.menu_library),
+                        subtitle = stringResource(R.string.menu_library_summary),
+                        selected = false,
+                        onClick = { onSection(MenuSection.Library) },
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_settings),
+                        subtitle = stringResource(R.string.menu_settings_summary),
+                        selected = false,
+                        onClick = { onSection(MenuSection.Settings) },
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_about),
+                        subtitle = "",
+                        selected = false,
+                        onClick = { onSection(MenuSection.About) },
+                    )
+                }
 
-            // Both hidden rather than disabled while the home screen is showing:
-            // a row that cannot act is a press that does nothing, which is the
-            // failure this interface is built to avoid.
-            if (canKeepPage) {
-                ListRow(
-                    title = stringResource(
-                        if (isFavourite) R.string.nav_favourite_remove else R.string.nav_favourite_add,
-                    ),
-                    subtitle = "",
-                    selected = isFavourite,
-                    onClick = onToggleFavourite,
-                )
-                ListRow(
-                    title = stringResource(R.string.menu_find),
-                    subtitle = "",
-                    selected = false,
-                    onClick = onFind,
-                )
-                ListRow(
-                    title = stringResource(
-                        if (isDesktopSite) R.string.menu_tv_site else R.string.menu_desktop_site,
-                    ),
-                    subtitle = "",
-                    selected = isDesktopSite,
-                    onClick = onToggleDesktopSite,
-                )
-                ListRow(
-                    title = stringResource(R.string.nav_reload),
-                    subtitle = "",
-                    selected = false,
-                    onClick = onReload,
-                )
-                // Only offered for a real page, because it is a decision about one
-                // site and there is no site behind the home screen.
-                ListRow(
-                    title = stringResource(R.string.menu_stay_signed_in),
-                    subtitle = stringResource(
-                        if (isStaySignedIn) {
-                            R.string.menu_stay_signed_in_on
+                MenuSection.Site -> {
+                    ListRow(
+                        title = stringResource(R.string.menu_privacy),
+                        subtitle = if (isFilteringOn) {
+                            if (blockedOnPage > 0) {
+                                pluralStringResource(
+                                    R.plurals.menu_privacy_blocked,
+                                    blockedOnPage,
+                                    blockedOnPage,
+                                )
+                            } else {
+                                stringResource(R.string.menu_privacy_on)
+                            }
                         } else {
-                            R.string.menu_stay_signed_in_off
+                            stringResource(R.string.menu_privacy_off)
                         },
-                    ),
-                    selected = isStaySignedIn,
-                    onClick = onToggleStaySignedIn,
-                )
+                        selected = isFilteringOn,
+                        onClick = onToggleFiltering,
+                        requestInitialFocus = true,
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_stay_signed_in),
+                        subtitle = stringResource(
+                            if (isStaySignedIn) {
+                                R.string.menu_stay_signed_in_on
+                            } else {
+                                R.string.menu_stay_signed_in_off
+                            },
+                        ),
+                        selected = isStaySignedIn,
+                        onClick = onToggleStaySignedIn,
+                    )
+                    ListRow(
+                        title = stringResource(
+                            if (isDesktopSite) R.string.menu_tv_site else R.string.menu_desktop_site,
+                        ),
+                        subtitle = "",
+                        selected = isDesktopSite,
+                        onClick = onToggleDesktopSite,
+                    )
+                    // Absent while a reader is driving rather than disabled. A
+                    // row that cannot act is a press that does nothing, which is
+                    // the failure this interface is built to avoid.
+                    if (inputModeIsFocus != null) {
+                        ListRow(
+                            title = stringResource(R.string.menu_input),
+                            subtitle = stringResource(
+                                if (inputModeIsFocus) {
+                                    R.string.menu_input_focus
+                                } else {
+                                    R.string.menu_input_cursor
+                                },
+                            ),
+                            selected = inputModeIsFocus,
+                            onClick = onToggleInputMode,
+                        )
+                    }
+                }
+
+                MenuSection.Library -> {
+                    ListRow(
+                        title = stringResource(R.string.menu_bookmarks),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onBookmarks,
+                        requestInitialFocus = true,
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_history),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onHistory,
+                    )
+                }
+
+                MenuSection.Settings -> {
+                    ListRow(
+                        title = stringResource(R.string.menu_theme),
+                        subtitle = stringResource(
+                            when (themeMode) {
+                                ThemeMode.System -> R.string.menu_theme_system
+                                ThemeMode.Light -> R.string.menu_theme_light
+                                ThemeMode.Dark -> R.string.menu_theme_dark
+                            },
+                        ),
+                        selected = false,
+                        onClick = onCycleTheme,
+                        requestInitialFocus = true,
+                    )
+                }
+
+                MenuSection.About -> {
+                    ListRow(
+                        title = stringResource(R.string.app_name),
+                        subtitle = stringResource(R.string.menu_about_version, versionName),
+                        selected = false,
+                        onClick = {},
+                        requestInitialFocus = true,
+                    )
+                }
             }
-
-            // Long-pressing OK does this too, and that is the faster way once you
-            // know it. It is not discoverable, and a shortcut nobody is told about
-            // cannot be the only way in -- the same reason the menu has a button in
-            // the address bar as well as a long press.
-            ListRow(
-                title = stringResource(R.string.menu_input),
-                subtitle = stringResource(
-                    when (inputModeIsFocus) {
-                        null -> R.string.menu_input_reader
-                        true -> R.string.menu_input_focus
-                        false -> R.string.menu_input_cursor
-                    },
-                ),
-                selected = inputModeIsFocus == true,
-                onClick = onToggleInputMode,
-            )
-
-            // The count is the subtitle rather than a badge: on a television a
-            // number nobody can read is decoration, and this one is the only
-            // evidence the viewer ever sees that the filtering is doing anything.
-            ListRow(
-                title = stringResource(R.string.menu_privacy),
-                subtitle = when {
-                    !isFilteringOn -> stringResource(R.string.menu_privacy_off)
-                    blockedOnPage > 0 ->
-                        pluralStringResource(R.plurals.menu_privacy_blocked, blockedOnPage, blockedOnPage)
-                    else -> stringResource(R.string.menu_privacy_on)
-                },
-                selected = isFilteringOn,
-                onClick = onToggleFiltering,
-            )
-
-            ListRow(
-                title = stringResource(R.string.menu_bookmarks),
-                subtitle = "",
-                selected = false,
-                onClick = onBookmarks,
-            )
-            ListRow(
-                title = stringResource(R.string.menu_history),
-                subtitle = "",
-                selected = false,
-                onClick = onHistory,
-            )
-
-            ListRow(
-                title = stringResource(R.string.menu_theme),
-                subtitle = stringResource(
-                    when (themeMode) {
-                        ThemeMode.System -> R.string.menu_theme_system
-                        ThemeMode.Light -> R.string.menu_theme_light
-                        ThemeMode.Dark -> R.string.menu_theme_dark
-                    },
-                ),
-                    selected = false,
-                    onClick = onCycleTheme,
-                )
-            }
+        }
     }
 }
 
