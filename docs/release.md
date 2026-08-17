@@ -37,13 +37,62 @@ Set these on the GitHub repository once it exists:
 | `NM_KEY_PASSWORD` | key password, same as the keystore password |
 | `PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account JSON, once the listing exists |
 
+The four signing secrets are set. `PLAY_SERVICE_ACCOUNT_JSON` is the only one
+outstanding, and it is the only thing between a tag and an upload.
+
+### Minting the Play service account
+
+This spans two consoles and mints a long-lived credential that can publish to
+the account, so it is worth doing in one sitting on a desktop rather than in
+pieces. Every step is on `console.cloud.google.com` until it says otherwise.
+
+1. Create or pick a Google Cloud project. It exists only to own the key; nothing
+   is billed and nothing runs in it.
+2. Enable the **Google Play Android Developer API** for that project. Without
+   this the credential authenticates and then fails every call, which reads as a
+   permissions problem and is not one.
+3. **IAM & Admin → Service Accounts → Create.** Give it a name that says what it
+   is, like `play-publisher`. Grant it no project roles — the permissions that
+   matter are granted in the Play Console, not here, and a project role only
+   widens what the key can reach if it leaks.
+4. On the new account, **Keys → Add key → Create new key → JSON.** The file
+   downloads once and cannot be re-downloaded. This is the secret.
+5. Move to `play.google.com/console`. **Users and permissions → Invite new
+   user**, and invite the service account by its email address, which looks like
+   `play-publisher@<project>.iam.gserviceaccount.com`.
+6. Grant it **Release to testing tracks** on the Arrowz Browser app, and nothing
+   else. It does not need account-level permissions, and it must not have
+   production release rights: promotion is a decision made by a person.
+
+Then, from this repository:
+
+```
+gh secret set PLAY_SERVICE_ACCOUNT_JSON < path/to/downloaded-key.json
+```
+
+Delete the downloaded file afterwards. It is in the repository secrets now, and
+a second copy in a downloads folder is a second thing that can leak.
+
+### The first Arrowz tag
+
+`v0.1.0` predates the rename. It builds `com.nomercylabs.browser` under the old
+name, and re-running a tag replays the workflow as it stood at that tag rather
+than as it stands now, so it would also name its artifacts `nomercy-browser-*`.
+
+The rename therefore needs a new tag rather than a re-run:
+
+```
+git tag v0.1.1
+git push origin v0.1.1
+```
+
 ## What a tag produces
 
 Pushing a `v*` tag builds both artifacts from the same signed build and attaches
 them to a GitHub release, along with their SHA-256 sums:
 
-- `nomercy-browser-<version>.aab` — what Play takes.
-- `nomercy-browser-<version>.apk` — what somebody sideloads onto a television
+- `arrowz-browser-<version>.aab` — what Play takes.
+- `arrowz-browser-<version>.apk` — what somebody sideloads onto a television
   Play has not reached. A release that ships only the bundle leaves those people
   with nothing.
 - `SHA256SUMS.txt` — so a download can be checked against what the pipeline
