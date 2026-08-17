@@ -895,6 +895,32 @@ class MainActivity : ComponentActivity() {
         formField = field
         formValue = field.value
         showChrome(if (field.kind == FieldKind.Select) ChromeSurface.Select else ChromeSurface.Form)
+        reportForTests("open", field.id)
+    }
+
+    /**
+     * Tells the page when the sheet opened and when a commit finished.
+     *
+     * Debug builds only, and it exists because nothing outside the app could
+     * answer either question. A harness driving the overlay had to guess at
+     * delays instead: typing on a fixed delay put characters into a sheet before
+     * it existed, so a whole run came out shifted by one field. `activeElement`
+     * answers the first question only after the tap has landed, and the second
+     * has no external answer at all.
+     *
+     * Written into the page rather than logged, because the thing that needs to
+     * wait on it is already talking to the page.
+     */
+    private fun reportForTests(event: String, id: String, value: String = "") {
+        if (!BuildConfig.DEBUG) return
+        host?.view?.evaluateJavascript(
+            "window.__nmTest = Object.assign(window.__nmTest || {}, {" +
+                "event:${event.asJsString()}," +
+                "id:${id.asJsString()}," +
+                "value:${value.asJsString()}," +
+                "seq:((window.__nmTest && window.__nmTest.seq) || 0) + 1})",
+            null,
+        )
     }
 
     /**
@@ -908,6 +934,7 @@ class MainActivity : ComponentActivity() {
         val field: FormField = formField ?: return
         host?.formBridge?.commit(field.id, formValue)
         showChrome(ChromeSurface.None)
+        reportForTests("commit", field.id, formValue)
     }
 
     private fun chooseOption(optionIndex: Int) {

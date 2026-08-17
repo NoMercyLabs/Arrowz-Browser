@@ -93,6 +93,17 @@ function evaluateOn(socketUrl, expression) {
   });
 }
 
+/** Polls a condition the app itself reports, rather than sleeping and hoping.
+ *  Returns false if it never becomes true, so a failure names which half of the
+ *  round trip did not happen. */
+async function waitFor(socket, expression, tries = 15) {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    sleep(350);
+    if (await evaluateOn(socket, expression)) return true;
+  }
+  return false;
+}
+
 /**
  * What each field should end up holding.
  *
@@ -136,38 +147,44 @@ async function main() {
     // sheet before it existed, and the run came out shifted by one field --
     // every value landing in the box after the one it was meant for.
     press('ok');
-    let opened = false;
-    for (let wait = 0; wait < 12 && !opened; wait++) {
-      sleep(400);
-      opened = await evaluateOn(socket,
-        `document.activeElement && document.activeElement.id === ${JSON.stringify(testCase.id)}`);
-    }
+    // Compared against the id the form bridge stamped on the element, not the
+    // page's own id: the app reports its own handle for the field, and matching
+    // on the DOM id said the sheet never opened when it had.
+    const opened = await waitFor(socket, `(function () {
+      var element = document.getElementById(${JSON.stringify(testCase.id)});
+      return !!window.__nmTest && window.__nmTest.event === 'open' &&
+        window.__nmTest.id === element.__nmFieldId;
+    })()`);
 
+    // The sheet opens with the field focused but not being edited, which is the
+    // whole point of the two states: while the keyboard is up the leanback IME
+    // consumes every directional key, so the Done row would be unreachable. OK
+    // starts editing, BACK ends it, and only then can DOWN reach Done.
+    press('ok');
+    sleep(1200);
     type(testCase.typed);
     sleep(900);
-
-    // Committed through the sheet's own Done row, not by sending ENTER. The
-    // field's Go action belongs to the IME, and an injected ENTER does not
-    // trigger it -- so the sheet stayed open, every later press went into it,
-    // and eight of nine fields received nothing at all.
+    press('back');
+    sleep(900);
     press('down');
-    sleep(500);
+    sleep(600);
     press('ok');
 
-    // And wait for the value to arrive rather than assuming it has: the commit
-    // is a round trip through the page.
-    let state = null;
-    for (let wait = 0; wait < 12; wait++) {
-      sleep(400);
-      state = JSON.parse(await evaluateOn(socket, 'window.formState()'));
-      if (state[testCase.id] === testCase.expect) break;
-    }
+    const committed = await waitFor(socket, `(function () {
+      var element = document.getElementById(${JSON.stringify(testCase.id)});
+      return !!window.__nmTest && window.__nmTest.event === 'commit' &&
+        window.__nmTest.id === element.__nmFieldId;
+    })()`);
+    sleep(400);
+    const state = JSON.parse(await evaluateOn(socket, 'window.formState()'));
     const got = state ? state[testCase.id] : null;
     results.push({
       id: testCase.id,
       expected: testCase.expect,
       got,
       ok: got === testCase.expect,
+      sheetOpened: opened,
+      committed,
       sawInput: !!state && state.events.includes(`input:${testCase.id}`),
       sawChange: !!state && state.events.includes(`change:${testCase.id}`),
     });

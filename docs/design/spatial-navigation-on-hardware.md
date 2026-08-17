@@ -82,3 +82,22 @@ first question only after the tap has already landed, and the second has no
 answer at all, so each attempt costs a full device round trip to find out. A
 reliable version needs the app to say so — a testing-only report the harness can
 wait on — rather than more guessing at delays from the outside.
+
+## Committing a field with the D-pad, which is open
+
+With the app now reporting when the sheet opens and when a commit finishes, the
+sequence is measurable end to end, and it stops in the same place every time.
+
+Watched on screen for the plain text field: OK opens the sheet with the field's
+label, OK again starts editing and the keyboard comes up, typing lands in the
+box, and BACK puts the keyboard away with the text kept and the sheet still
+open. Then DOWN does not reach the Done row, and OK goes back into the field.
+The only press that leaves the sheet is BACK, which discards.
+
+Routing DOWN to the Done row by name rather than by geometry — the override the
+plan calls for wherever a search across a container boundary is ambiguous — did
+not change it. So the ambiguity is not the cause and the next suspect is the
+field's own focus handling, which asks for focus back when editing ends.
+
+This is the highest-value thing outstanding in the browser: a form can be typed
+into and not submitted.

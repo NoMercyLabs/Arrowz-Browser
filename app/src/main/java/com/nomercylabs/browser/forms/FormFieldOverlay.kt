@@ -9,6 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +54,8 @@ fun FormFieldOverlay(
     val palette: Palette = LocalPalette.current
     val label: String = field.label.ifBlank { stringResource(R.string.form_field_generic) }
 
+    val doneFocus = remember { FocusRequester() }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -90,6 +95,16 @@ fun FormFieldOverlay(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
+            /**
+             * DOWN out of the field is routed by name rather than by geometry.
+             *
+             * Measured on the 8000: after typing and pressing BACK to put the
+             * keyboard away, DOWN did not reach Done and OK went back into the
+             * field. There was no way to commit with the D-pad at all -- the only
+             * press that left the sheet was BACK, which discards. The field and
+             * the microphone sit in a Row inside a Column, and the search across
+             * that boundary is ambiguous enough to find nothing.
+             */
             TvTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -101,11 +116,14 @@ fun FormFieldOverlay(
                 requestInitialFocus = true,
                 keyboardType = keyboardTypeFor(field.keyboard),
                 isSecret = field.keyboard == FieldKeyboard.Password,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusProperties { down = doneFocus },
             )
             IconButton(
                 contentDescription = stringResource(R.string.form_voice),
                 onClick = onVoice,
+                modifier = Modifier.focusProperties { down = doneFocus },
             ) { tint -> NavIcons.Mic(tint) }
         }
 
@@ -118,6 +136,7 @@ fun FormFieldOverlay(
             selected = false,
             offered = true,
             onClick = onCommit,
+            externalFocusRequester = doneFocus,
         )
     }
 }
