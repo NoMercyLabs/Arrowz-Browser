@@ -15,7 +15,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Tags included deliberately. The version step counts same-day tags to
+      # decide whether today needs a suffix, and a default shallow checkout
+      # fetches none of them, so the count was always zero and the second
+      # release of a day collided with the first.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v5
         with:
