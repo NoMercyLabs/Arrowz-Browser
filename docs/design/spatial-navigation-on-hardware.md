@@ -191,6 +191,13 @@ clock:
 | en.wikipedia.org article | 58 | 56 | 65 | 41 (capped) | 7 of 41 | 7 |
 | developer.android.com | 26 | 32 | 42 | 22 | 8 of 22 | 9 |
 | news.ycombinator.com | 218 | 51 | 73 | 41 (capped) | 7 of 41 | 7 |
+| developer.mozilla.org | 32 | 32 | 64 | 39 | 8 of 39 | 6 |
+
+The MDN page is the one that reaches everything: 32 of 32, walking the contents
+list, then the values, then each value's own "See also" and stacking-context
+links in turn. It is also the page where the leg count drops below the number of
+legs, because two rows had somewhere to go on their twelfth press and the sweep
+ran out of presses before the row ran out of controls.
 
 "In reach" is what the page reported within a screen of the viewport at the
 moment it was asked, which is why a sweep that scrolls the whole document can
