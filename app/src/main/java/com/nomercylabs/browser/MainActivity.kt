@@ -57,6 +57,8 @@ import com.nomercylabs.browser.browser.WebViewHost
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import com.nomercylabs.browser.chrome.HomeGrid
 import com.nomercylabs.browser.chrome.MenuOverlay
 import com.nomercylabs.browser.chrome.NavBar
@@ -1184,14 +1186,18 @@ private fun BrowserScreen(
         // between them: the bar sends DOWN to it and the grid answers to it.
         val firstTile = remember { FocusRequester() }
         val homeField = remember { FocusRequester() }
+        val homeSection = remember { FocusRequester() }
 
-        // Every surface that closes hands focus back to something. Compose does
-        // not restore it on its own: the surface that had focus is gone, the
-        // home screen becomes focusable again, and nothing asks for it — so
-        // every direction does nothing and the viewer is stranded on a screen
-        // that looks fine. Keyed on the surface, so it runs on each change.
+        // Every surface that closes hands focus back to where it was taken
+        // from, not to the top of the screen. Compose restores nothing on its
+        // own: the surface that had focus is gone, the home screen becomes
+        // focusable again, and nothing asks for it, so every direction does
+        // nothing on a screen that looks fine. `focusRestorer` remembers the
+        // child that had it, and the field is the fallback for the first time
+        // through when there is nothing yet to remember.
         LaunchedEffect(chrome, showHome) {
-            if (chrome == ChromeSurface.None && showHome) {
+            if (chrome != ChromeSurface.None || !showHome) return@LaunchedEffect
+            if (runCatching { homeSection.requestFocus() }.isFailure) {
                 runCatching { homeField.requestFocus() }
             }
         }
@@ -1207,7 +1213,9 @@ private fun BrowserScreen(
                     // take focus. Without this the D-pad walks out of the menu
                     // into the address bar behind it, and the menu is still on
                     // screen with nothing in it focused.
+                    .focusRequester(homeSection)
                     .focusGroup()
+                    .focusRestorer(homeField)
                     .focusProperties { canFocus = chrome == ChromeSurface.None },
             ) {
                 NavBar(

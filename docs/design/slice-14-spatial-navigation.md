@@ -15,11 +15,13 @@ one interface.
 
 In order: a candidate must lie strictly beyond the source on both edges, or it
 is not in the direction of travel at any distance. Project the source across the
-travel axis; anything overlapping that beam beats everything outside it however
-near the outsider is. Within a beam class, minimise `13 × major² + minor²` —
-Android's own weighting, so travelling far in the intended direction is cheap
-and drifting sideways is not. Identical geometry breaks by document order, so a
-page focuses the same way twice.
+travel axis; anything overlapping that beam beats something outside it — but
+vertically only when it is genuinely nearer than the far edge of what it beats,
+which is the qualification that stops one narrow column of a page swallowing
+every downward press. Where neither wins on the beam, minimise
+`13 × major² + minor²`, Android's own weighting, in which distance along the
+travel axis is the expensive term. Identical geometry breaks by document order,
+so a page focuses the same way twice.
 
 Two rules the web needs that native does not are results rather than moves. A
 winner outside the viewport scrolls a screenful and searches again, because
@@ -66,9 +68,20 @@ chore automatic selection exists to remove.
 
 ## Measured on the 8010
 
-DuckDuckGo's home page chose focus mode by itself, drew our ring on the Duck.ai
-button in the same steel as the chrome, and DOWN stepped from it to the search
-field's submit button without the pointer appearing at all.
+DuckDuckGo's home page chose focus mode by itself and drew our ring on the
+Duck.ai button in the same steel as the chrome, with no pointer on screen.
+
+The first run of that page found a real defect. DOWN from the top-right button
+reached the search field's submit icon rather than the pair of toggles well
+above it and slightly left. The submit is in the beam, but most of the page
+further down, and the unqualified beam rule handed it the press. Adding the
+vertical qualification fixed it, and re-running the same three presses now lands
+on the Duck.ai toggle.
+
+Two older fixtures failed once the rule was corrected, and both of them were
+wrong rather than the code: they encoded the unqualified beam, and one of them
+also asserted that a candidate far down the page beats a near one off to the
+side, which inverts what the 13:1 weighting actually does.
 
 The `org.json` on the unit-test classpath is a stub that throws from every
 method, so the parser's tests run against the real implementation added as a

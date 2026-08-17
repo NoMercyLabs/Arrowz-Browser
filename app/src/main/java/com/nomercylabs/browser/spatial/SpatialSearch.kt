@@ -64,7 +64,12 @@ object SpatialSearch {
             return if (canScroll) scrollFor(direction, viewport) else SpatialResult.LeavePage
         }
 
-        val winner: Focusable = inDirection.minWith(ranking(direction, source))
+        val winner: Focusable = inDirection.reduce { best, next ->
+            if (isBetter(direction, source, next.rect, best.rect)) next
+            else if (isBetter(direction, source, best.rect, next.rect)) best
+            else if (next.documentOrder < best.documentOrder) next
+            else best
+        }
 
         // Scroll before jumping. Focus disappearing off screen is the single
         // worst thing a television browser does, and it is what a search that
@@ -88,17 +93,54 @@ object SpatialSearch {
             else -> false
         }
 
-    private fun ranking(direction: RemoteKey, source: Rect): Comparator<Focusable> =
-        compareBy<Focusable> { candidate ->
-            // The beam outranks distance outright. Project the source onto the
-            // axis across the travel; anything overlapping that band beats
-            // everything outside it however near the outsider happens to be.
-            // This one rule is what makes movement feel like movement rather
-            // than teleporting.
-            if (isInBeam(direction, source, candidate.rect)) 0 else 1
+    private fun isBetter(direction: RemoteKey, source: Rect, candidate: Rect, rival: Rect): Boolean =
+        when {
+            beamBeats(direction, source, candidate, rival) -> true
+            beamBeats(direction, source, rival, candidate) -> false
+            else -> weightedDistance(direction, source, candidate) <
+                weightedDistance(direction, source, rival)
         }
-            .thenBy { candidate -> weightedDistance(direction, source, candidate.rect) }
-            .thenBy { candidate -> candidate.documentOrder }
+
+    /**
+     * Whether being in the beam is enough for [candidate] to win outright.
+     *
+     * The beam is what makes movement feel like movement: project the source
+     * across the travel axis, and something overlapping that band beats
+     * something outside it however near the outsider is. But it is not
+     * unconditional, and the qualification is the part that is easy to miss.
+     *
+     * Measured on DuckDuckGo's home page: from the button in the top right,
+     * DOWN reached the search field's submit icon — in beam, but most of the
+     * page further down — instead of the pair of toggles sitting well above it
+     * and slightly left. Vertically, an in-beam candidate only wins when it is
+     * genuinely nearer than the far edge of what it is beating; without that
+     * test, one narrow column of the page swallows every downward press.
+     */
+    private fun beamBeats(direction: RemoteKey, source: Rect, candidate: Rect, rival: Rect): Boolean {
+        val candidateInBeam: Boolean = isInBeam(direction, source, candidate)
+        val rivalInBeam: Boolean = isInBeam(direction, source, rival)
+
+        if (rivalInBeam || !candidateInBeam) return false
+        if (!isBeyond(direction, source, rival)) return true
+
+        // Horizontally the beam is unqualified: rows are the unit of meaning,
+        // and staying in one is what a viewer expects from LEFT and RIGHT.
+        if (direction == RemoteKey.Left || direction == RemoteKey.Right) return true
+
+        return majorAxisDistance(direction, source, candidate) <
+            majorAxisDistanceToFarEdge(direction, source, rival)
+    }
+
+    /** To the far side of the rival, which is what makes the comparison a test
+     *  of "clearly nearer" rather than of "nearer by a pixel". */
+    private fun majorAxisDistanceToFarEdge(direction: RemoteKey, source: Rect, candidate: Rect): Int =
+        when (direction) {
+            RemoteKey.Up -> source.top - candidate.top
+            RemoteKey.Down -> candidate.bottom - source.bottom
+            RemoteKey.Left -> source.left - candidate.left
+            RemoteKey.Right -> candidate.right - source.right
+            else -> 0
+        }.coerceAtLeast(1)
 
     private fun isInBeam(direction: RemoteKey, source: Rect, candidate: Rect): Boolean =
         when (direction) {
@@ -110,8 +152,13 @@ object SpatialSearch {
         }
 
     /**
-     * `13 × major² + minor²`, Android's own tuned weighting. Travelling far in
-     * the intended direction is cheap; drifting sideways is not.
+     * `13 × major² + minor²`, Android's own tuned weighting, used only when
+     * neither candidate wins on the beam.
+     *
+     * Major distance is the expensive term, so a candidate barely past the
+     * source wins over one much further along even when the near one sits well
+     * off to the side. Keeping movement in a straight line is the beam's job,
+     * not this one's.
      */
     private fun weightedDistance(direction: RemoteKey, source: Rect, candidate: Rect): Long {
         val major: Long = majorAxisDistance(direction, source, candidate).toLong()

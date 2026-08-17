@@ -35,8 +35,8 @@ class SpatialSearchTest {
             direction = RemoteKey.Down,
             source = source,
             candidates = listOf(
-                at("inBeamButLeft", left = 480, top = 300, order = 1),
-                at("outOfBeamButNearer", left = 1000, top = 200, order = 2),
+                at("inBeamButLeft", left = 480, top = 200, order = 1),
+                at("outOfBeamButNearer", left = 1000, top = 190, order = 2),
             ),
             viewport = viewport,
         )
@@ -131,19 +131,23 @@ class SpatialSearchTest {
         assertEquals("first", move(result))
     }
 
+    // The 13:1 weighting, tested where it actually decides: both candidates out
+    // of the beam, so nothing beam-beats and only the weights are left. Major
+    // distance is the expensive one, which is why a candidate a long way down
+    // loses to one barely below and far to the side.
     @Test
-    fun travellingFarInTheIntendedDirectionBeatsDriftingSideways() {
+    fun nearnessAlongTheTravelAxisIsWeightedThirteenTimesASidewaysOffset() {
         val source = Rect(500, 0, 600, 40)
         val result = SpatialSearch.search(
             direction = RemoteKey.Down,
             source = source,
             candidates = listOf(
-                at("straightDownFar", left = 500, top = 600, order = 1),
-                at("closeButSideways", left = 900, top = 100, order = 2),
+                at("barelyBelowButFarSideways", left = 1400, top = 100, order = 1),
+                at("wellBelowAndSlightlySideways", left = 620, top = 500, order = 2),
             ),
             viewport = viewport,
         )
-        assertEquals("straightDownFar", move(result))
+        assertEquals("barelyBelowButFarSideways", move(result))
     }
 
     @Test
@@ -219,6 +223,44 @@ class SpatialSearchTest {
             viewport = viewport,
         )
         assertEquals("startsWhereSourceEnds", move(result))
+    }
+
+    // Measured on DuckDuckGo's home page on the 8010, and wrong: from the
+    // button in the top right, DOWN reached the search field's submit icon
+    // rather than the pair of toggles sitting well above it and slightly left.
+    // The submit is in the beam, but most of the page further down. An in-beam
+    // candidate only wins vertically when it is genuinely nearer than the far
+    // edge of what it beats; without that test, one narrow column of a page
+    // swallows every downward press.
+    @Test
+    fun anInBeamCandidateFarBelowLosesToACloserGroupBesideIt() {
+        val topRightButton = Rect(1530, 88, 1735, 146)
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = topRightButton,
+            candidates = listOf(
+                Focusable("toggles", Rect(750, 495, 1170, 560), 2),
+                Focusable("submitIcon", Rect(1490, 620, 1560, 680), 3),
+            ),
+            viewport = viewport,
+        )
+        assertEquals("toggles", move(result))
+    }
+
+    // The qualification must not undo the beam where the beam is right: a
+    // candidate directly below and close still beats one off to the side.
+    @Test
+    fun anInBeamCandidateThatIsGenuinelyNearerStillWins() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = Rect(500, 100, 600, 140),
+            candidates = listOf(
+                at("directlyBelow", left = 500, top = 200, order = 1),
+                at("offToTheSide", left = 1200, top = 180, order = 2),
+            ),
+            viewport = viewport,
+        )
+        assertEquals("directlyBelow", move(result))
     }
 
     @Test
