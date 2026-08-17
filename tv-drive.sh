@@ -41,6 +41,48 @@ foreground() {
         sed -n 's/.* \([A-Za-z0-9_.]*\)\/.*/\1/p' | tr -d '\r'
 }
 
+# OK is the one key that does something irreversible, and the nav bar's
+# microphone is the one target that does something loud: it opens the system
+# recogniser, which takes the screen and listens to the room. A directional key
+# that gets dropped — they do, intermittently — leaves focus one control away
+# from it, so "down, right, ok" has fired the microphone more than once.
+#
+# Knowing the foreground app is not enough to prevent that. This checks where
+# the focus ring actually is before OK is allowed through.
+MIC_REGION="1395,60,1485,145"
+
+focus_is_on_microphone() {
+    local shot
+    shot="$(mktemp -t nmfocus.XXXXXX).png"
+    adb -s "$DEVICE" exec-out screencap -p > "$shot" 2>/dev/null || { rm -f "$shot"; return 1; }
+
+    python - "$shot" "$MIC_REGION" <<'PY'
+import sys
+try:
+    from PIL import Image
+except ImportError:
+    sys.exit(1)          # cannot tell; do not block
+
+image = Image.open(sys.argv[1]).convert('RGB')
+x0, y0, x1, y1 = (int(v) for v in sys.argv[2].split(','))
+accent = (140, 163, 184)                    # Tokens focus ring, dark palette
+
+hits = 0
+for x in range(x0, min(x1, image.width), 2):
+    for y in range(y0, min(y1, image.height), 2):
+        pixel = image.getpixel((x, y))
+        if sum(abs(a - b) for a, b in zip(pixel, accent)) < 60:
+            hits += 1
+
+# An unfocused button sits near the surface colour and scores a handful of
+# pixels from antialiasing; a focused one is ringed and scores far more.
+sys.exit(0 if hits > 40 else 2)
+PY
+    local verdict=$?
+    rm -f "$shot"
+    return $((verdict == 0 ? 0 : 1))
+}
+
 keycode_for() {
     case "${1,,}" in
         up) echo 19 ;;
@@ -91,6 +133,14 @@ for key in "${KEYS[@]}"; do
         echo "refusing to send '$key': $APPLICATION_ID is not in front, $current is." >&2
         echo "the television belongs to somebody who may be using it." >&2
         exit 1
+    fi
+
+    if [[ "${key,,}" == "ok" || "${key,,}" == "center" || "$key" == "23" ]]; then
+        if focus_is_on_microphone; then
+            echo "refusing to send '$key': the focus ring is on the microphone button." >&2
+            echo "OK there opens the system recogniser and listens to the room." >&2
+            exit 1
+        fi
     fi
 
     if [[ "$key" == LONG* ]]; then
