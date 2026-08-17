@@ -116,3 +116,27 @@ Two notes from putting these into the app, in case they change what you would dr
 ## The wordmark
 
 The lockup is "Arrowz" over "browser" in blackletter. At the tile size on a television, "browser" is around 14 real pixels tall and blackletter is the hardest face to read small. Worth checking that second line at 100% on a screen across the room, and dropping it if it turns to texture — the square mark already does without it.
+
+## Phone screenshots, for an app phones cannot install
+
+Play requires two phone screenshots on the base listing even though this app
+declares `android.software.leanback` and its device catalogue excludes phones.
+`docs/store/phone-1-home.png` and `phone-2-page.png` are those two.
+
+They are real captures of the app running on a real phone, a Samsung at
+1080x2408. That is possible for exactly the reason a television app once
+installed itself on a phone: `uses-feature leanback` is Play distribution
+metadata and the platform installer never reads it, so `adb install` works.
+
+Two things were decided while taking them, both visible in the files:
+
+Landscape, not portrait. A fresh install in portrait shows an address bar
+squeezed past its own buttons and an empty grid, which is a fair picture of a
+layout nobody targeted and an unfair picture of the app. Landscape is the
+geometry the app is built for and the one a television uses.
+
+Composed onto 16:9. Play wants a ratio between 16:9 and 9:16, and the phone's
+landscape frame is 2.28:1, so the app's own area is cut from the capture and
+centred on the mark's darkest ground. The pixels are the app's; only the
+surround is added. The phone's status bar and gesture bar are cropped out, since
+they are the system rather than us.
