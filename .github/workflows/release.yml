@@ -62,6 +62,28 @@ jobs:
           cat SHA256SUMS.txt
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Play warns that the bundle carries native code with no symbols. It is
+      # right: the only .so here is libandroidx.graphics.path.so, which Compose
+      # brings in transitively and which ships stripped, so debugSymbolLevel has
+      # nothing to embed. The stripped libraries still carry a dynamic symbol
+      # table, which is enough for Play to turn addresses in a native crash into
+      # exported function names. Partial symbolication rather than none.
+      #
+      # Google wants them laid out as <abi>/<lib>.so inside a zip.
+      - name: Collect native debug symbols
+        id: symbols
+        run: |
+          SRC=$(find app/build/intermediates/merged_native_libs/release -type d -name lib | head -n1)
+          if [ -z "$SRC" ]; then
+            echo "::warning title=No native symbols::No merged native libraries were found, so a native crash on this release will report bare addresses."
+            echo "path=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p symbols && cp -r "$SRC"/* symbols/
+          find symbols -name '*.so' -printf '  %p (%s bytes)\n'
+          (cd symbols && zip -qr ../release/native-debug-symbols.zip .)
+          echo "path=release/native-debug-symbols.zip" >> "$GITHUB_OUTPUT"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
@@ -143,6 +165,10 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.nomercylabs.arrowz
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
+          # R8 is on, so without this every Java stack trace in the Play console
+          # is obfuscated and a crash report is unreadable.
+          mappingFile: app/build/outputs/mapping/release/mapping.txt
+          debugSymbols: ${{ steps.symbols.outputs.path }}
           track: internal
           status: completed
 

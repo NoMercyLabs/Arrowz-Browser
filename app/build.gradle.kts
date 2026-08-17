@@ -44,6 +44,18 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+
+            // The one native library here, libandroidx.graphics.path.so, arrives
+            // from a third-party AAR already stripped to .dynsym, so this finds
+            // no .debug_* to embed and the bundle carries no symbol metadata.
+            // Declared anyway because it costs nothing and starts working the
+            // day a dependency ships unstripped; the workflow uploads the
+            // stripped libraries separately, which buys exported function names
+            // in a native crash rather than bare addresses.
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
+
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (System.getenv("NM_KEYSTORE_PATH") != null) {
                 signingConfig = signingConfigs.getByName("upload")
