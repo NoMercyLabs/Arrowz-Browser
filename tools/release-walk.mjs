@@ -45,6 +45,31 @@ function frame(name) {
   return { bytes: png.length, hash: createHash('sha1').update(png).digest('hex').slice(0, 12) };
 }
 
+/**
+ * Waits until the screen stops changing, rather than for a fixed number of
+ * seconds.
+ *
+ * A fixed wait reported the release build as completely unresponsive - 8 of 8
+ * frames identical - while the same walk against debug reported 0 of 8. The
+ * build was fine. Ten seconds is not enough for a cold release start, so the
+ * mode toggle was sent while the navigation was still in flight, and the
+ * navigation that landed afterwards re-ran the input-mode decision and undid
+ * it. The walk then measured a page in the mode it had just tried to leave.
+ *
+ * Two identical frames in a row is the signal that the page has stopped
+ * arriving and the toggle will stick.
+ */
+function settle(maxMillis = 40000) {
+  let previous = '';
+  const deadline = Date.now() + maxMillis;
+  while (Date.now() < deadline) {
+    sleep(1500);
+    const now = frame('settle').hash;
+    if (now === previous) return;
+    previous = now;
+  }
+}
+
 // Opened here when a page is named, so the whole check is one command rather
 // than a command with a remembered setup step in front of it.
 const url = process.argv[5];
@@ -53,10 +78,9 @@ if (url) {
   sleep(1500);
   adb(['shell', 'am', 'start', '-n', `${PACKAGE}/com.nomercylabs.arrowz.MainActivity`,
        '-a', 'android.intent.action.VIEW', '-d', url]);
-  sleep(10000);
+  settle();
 }
 
-sleep(2000);
 requireForeground();
 // Focus mode, since the probe may have chosen the pointer.
 adb(['shell', 'input', 'keyevent', '--longpress', '23']);
