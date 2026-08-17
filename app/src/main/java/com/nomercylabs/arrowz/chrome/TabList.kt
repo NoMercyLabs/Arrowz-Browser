@@ -7,6 +7,7 @@ package com.nomercylabs.arrowz.chrome
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,7 +71,13 @@ fun TabList(
             ) { tint -> NavIcons.Plus(tint) }
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm)) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
+            // A lazy list clips at its viewport, and the viewport edge fell on
+            // the first and last item's edge, so their shadow and focus growth
+            // were cut while every item between them kept both.
+            contentPadding = PaddingValues(Tokens.SpaceSm),
+        ) {
             items(tabs, key = { tab -> tab.id }) { tab ->
                 ListRow(
                     title = tab.page.pageTitle.ifEmpty { stringResource(R.string.tabs_untitled) },

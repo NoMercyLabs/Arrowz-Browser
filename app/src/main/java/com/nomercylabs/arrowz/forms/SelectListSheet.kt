@@ -7,6 +7,7 @@ package com.nomercylabs.arrowz.forms
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,7 +75,13 @@ fun SelectListSheet(
         // the page already was.
         val opensAt: Int = field.selectedIndex.coerceAtLeast(0)
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Tokens.SpaceXs)) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(Tokens.SpaceXs),
+            // A lazy list clips at its viewport, and the viewport edge fell on
+            // the first and last item's edge, so their shadow and focus growth
+            // were cut while every item between them kept both.
+            contentPadding = PaddingValues(Tokens.SpaceSm),
+        ) {
             itemsIndexed(field.options) { index, option ->
                 ListRow(
                     title = option.label.ifBlank { option.value },

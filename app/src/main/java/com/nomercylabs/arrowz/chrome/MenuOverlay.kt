@@ -9,9 +9,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -24,7 +27,6 @@ import com.nomercylabs.arrowz.ui.LocalPalette
 import com.nomercylabs.arrowz.ui.Palette
 import com.nomercylabs.arrowz.ui.ThemeMode
 import com.nomercylabs.arrowz.ui.Tokens
-import com.nomercylabs.arrowz.ui.overscan
 
 /**
  * What a long press on BACK opens.
@@ -66,150 +68,186 @@ fun MenuOverlay(
 ) {
     val palette: Palette = LocalPalette.current
 
-    // Scrollable, and it has to be. The menu outgrew 1080p when privacy landed,
-    // and a row past the bottom edge of a television is a row nobody can reach
-    // at all — the same failure as a press that does nothing, arrived at from
-    // the other direction. Compose brings a focused child into view, so the
-    // D-pad walks the whole list without anything else changing.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(palette.surface.copy(alpha = SCRIM_ALPHA))
-            .overscan()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
+            .background(palette.surface.copy(alpha = SCRIM_ALPHA)),
     ) {
+        // Outside the scroll. A title that scrolls away takes with it the only
+        // thing saying which list this is, and it left the heading sitting in
+        // the same column as the rows as though it were one of them.
         BasicText(
             text = stringResource(R.string.menu_title),
             style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextTitle),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = Tokens.OverscanHorizontal,
+                    end = Tokens.OverscanHorizontal,
+                    top = Tokens.OverscanVertical,
+                    bottom = Tokens.SpaceMd,
+                ),
         )
 
-        ListRow(
-            title = stringResource(R.string.tabs_new),
-            subtitle = "",
-            selected = false,
-            onClick = onNewTab,
-            requestInitialFocus = true,
-        )
-        ListRow(
-            title = stringResource(R.string.nav_tabs),
-            subtitle = "",
-            selected = false,
-            onClick = onTabs,
-        )
-        ListRow(
-            title = stringResource(R.string.menu_home),
-            subtitle = "",
-            selected = false,
-            onClick = onHome,
+        // The line is what separates them. A gap alone reads as loose spacing
+        // once the list is scrolled and a row sits directly beneath the title.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(Tokens.Hairline)
+                .background(palette.outline),
         )
 
-        // Both hidden rather than disabled while the home screen is showing:
-        // a row that cannot act is a press that does nothing, which is the
-        // failure this interface is built to avoid.
-        if (canKeepPage) {
-            ListRow(
-                title = stringResource(
-                    if (isFavourite) R.string.nav_favourite_remove else R.string.nav_favourite_add,
+        // Scrollable, and it has to be. The menu outgrew 1080p when privacy
+        // landed, and a row past the bottom edge of a television is a row nobody
+        // can reach at all — the same failure as a press that does nothing,
+        // arrived at from the other direction. Compose brings a focused child
+        // into view, so the D-pad walks the whole list without anything else
+        // changing.
+        //
+        // The inset sits inside the scroll rather than around it. Outside, the
+        // viewport edge fell exactly on the last row's edge and clipped the
+        // shadow every raised surface carries, so the bottom row came out flat
+        // against the screen edge while every row above it was lifted.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = Tokens.OverscanHorizontal,
+                    end = Tokens.OverscanHorizontal,
+                    top = Tokens.SpaceMd,
+                    bottom = Tokens.OverscanVertical,
                 ),
-                subtitle = "",
-                selected = isFavourite,
-                onClick = onToggleFavourite,
-            )
+            verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
+        ) {
             ListRow(
-                title = stringResource(R.string.menu_find),
+                title = stringResource(R.string.tabs_new),
                 subtitle = "",
                 selected = false,
-                onClick = onFind,
+                onClick = onNewTab,
+                requestInitialFocus = true,
             )
             ListRow(
-                title = stringResource(
-                    if (isDesktopSite) R.string.menu_tv_site else R.string.menu_desktop_site,
-                ),
-                subtitle = "",
-                selected = isDesktopSite,
-                onClick = onToggleDesktopSite,
-            )
-            ListRow(
-                title = stringResource(R.string.nav_reload),
+                title = stringResource(R.string.nav_tabs),
                 subtitle = "",
                 selected = false,
-                onClick = onReload,
+                onClick = onTabs,
             )
-            // Only offered for a real page, because it is a decision about one
-            // site and there is no site behind the home screen.
             ListRow(
-                title = stringResource(R.string.menu_stay_signed_in),
+                title = stringResource(R.string.menu_home),
+                subtitle = "",
+                selected = false,
+                onClick = onHome,
+            )
+
+            // Both hidden rather than disabled while the home screen is showing:
+            // a row that cannot act is a press that does nothing, which is the
+            // failure this interface is built to avoid.
+            if (canKeepPage) {
+                ListRow(
+                    title = stringResource(
+                        if (isFavourite) R.string.nav_favourite_remove else R.string.nav_favourite_add,
+                    ),
+                    subtitle = "",
+                    selected = isFavourite,
+                    onClick = onToggleFavourite,
+                )
+                ListRow(
+                    title = stringResource(R.string.menu_find),
+                    subtitle = "",
+                    selected = false,
+                    onClick = onFind,
+                )
+                ListRow(
+                    title = stringResource(
+                        if (isDesktopSite) R.string.menu_tv_site else R.string.menu_desktop_site,
+                    ),
+                    subtitle = "",
+                    selected = isDesktopSite,
+                    onClick = onToggleDesktopSite,
+                )
+                ListRow(
+                    title = stringResource(R.string.nav_reload),
+                    subtitle = "",
+                    selected = false,
+                    onClick = onReload,
+                )
+                // Only offered for a real page, because it is a decision about one
+                // site and there is no site behind the home screen.
+                ListRow(
+                    title = stringResource(R.string.menu_stay_signed_in),
+                    subtitle = stringResource(
+                        if (isStaySignedIn) {
+                            R.string.menu_stay_signed_in_on
+                        } else {
+                            R.string.menu_stay_signed_in_off
+                        },
+                    ),
+                    selected = isStaySignedIn,
+                    onClick = onToggleStaySignedIn,
+                )
+            }
+
+            // Long-pressing OK does this too, and that is the faster way once you
+            // know it. It is not discoverable, and a shortcut nobody is told about
+            // cannot be the only way in -- the same reason the menu has a button in
+            // the address bar as well as a long press.
+            ListRow(
+                title = stringResource(R.string.menu_input),
                 subtitle = stringResource(
-                    if (isStaySignedIn) {
-                        R.string.menu_stay_signed_in_on
-                    } else {
-                        R.string.menu_stay_signed_in_off
+                    when (inputModeIsFocus) {
+                        null -> R.string.menu_input_reader
+                        true -> R.string.menu_input_focus
+                        false -> R.string.menu_input_cursor
                     },
                 ),
-                selected = isStaySignedIn,
-                onClick = onToggleStaySignedIn,
+                selected = inputModeIsFocus == true,
+                onClick = onToggleInputMode,
             )
-        }
 
-        // Long-pressing OK does this too, and that is the faster way once you
-        // know it. It is not discoverable, and a shortcut nobody is told about
-        // cannot be the only way in -- the same reason the menu has a button in
-        // the address bar as well as a long press.
-        ListRow(
-            title = stringResource(R.string.menu_input),
-            subtitle = stringResource(
-                when (inputModeIsFocus) {
-                    null -> R.string.menu_input_reader
-                    true -> R.string.menu_input_focus
-                    false -> R.string.menu_input_cursor
+            // The count is the subtitle rather than a badge: on a television a
+            // number nobody can read is decoration, and this one is the only
+            // evidence the viewer ever sees that the filtering is doing anything.
+            ListRow(
+                title = stringResource(R.string.menu_privacy),
+                subtitle = when {
+                    !isFilteringOn -> stringResource(R.string.menu_privacy_off)
+                    blockedOnPage > 0 ->
+                        pluralStringResource(R.plurals.menu_privacy_blocked, blockedOnPage, blockedOnPage)
+                    else -> stringResource(R.string.menu_privacy_on)
                 },
-            ),
-            selected = inputModeIsFocus == true,
-            onClick = onToggleInputMode,
-        )
+                selected = isFilteringOn,
+                onClick = onToggleFiltering,
+            )
 
-        // The count is the subtitle rather than a badge: on a television a
-        // number nobody can read is decoration, and this one is the only
-        // evidence the viewer ever sees that the filtering is doing anything.
-        ListRow(
-            title = stringResource(R.string.menu_privacy),
-            subtitle = when {
-                !isFilteringOn -> stringResource(R.string.menu_privacy_off)
-                blockedOnPage > 0 ->
-                    pluralStringResource(R.plurals.menu_privacy_blocked, blockedOnPage, blockedOnPage)
-                else -> stringResource(R.string.menu_privacy_on)
-            },
-            selected = isFilteringOn,
-            onClick = onToggleFiltering,
-        )
+            ListRow(
+                title = stringResource(R.string.menu_bookmarks),
+                subtitle = "",
+                selected = false,
+                onClick = onBookmarks,
+            )
+            ListRow(
+                title = stringResource(R.string.menu_history),
+                subtitle = "",
+                selected = false,
+                onClick = onHistory,
+            )
 
-        ListRow(
-            title = stringResource(R.string.menu_bookmarks),
-            subtitle = "",
-            selected = false,
-            onClick = onBookmarks,
-        )
-        ListRow(
-            title = stringResource(R.string.menu_history),
-            subtitle = "",
-            selected = false,
-            onClick = onHistory,
-        )
-
-        ListRow(
-            title = stringResource(R.string.menu_theme),
-            subtitle = stringResource(
-                when (themeMode) {
-                    ThemeMode.System -> R.string.menu_theme_system
-                    ThemeMode.Light -> R.string.menu_theme_light
-                    ThemeMode.Dark -> R.string.menu_theme_dark
-                },
-            ),
-            selected = false,
-            onClick = onCycleTheme,
-        )
+            ListRow(
+                title = stringResource(R.string.menu_theme),
+                subtitle = stringResource(
+                    when (themeMode) {
+                        ThemeMode.System -> R.string.menu_theme_system
+                        ThemeMode.Light -> R.string.menu_theme_light
+                        ThemeMode.Dark -> R.string.menu_theme_dark
+                    },
+                ),
+                    selected = false,
+                    onClick = onCycleTheme,
+                )
+            }
     }
 }
 

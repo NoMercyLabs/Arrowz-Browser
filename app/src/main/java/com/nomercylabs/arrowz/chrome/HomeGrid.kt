@@ -7,6 +7,7 @@ package com.nomercylabs.arrowz.chrome
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -74,6 +75,10 @@ fun HomeGrid(
             columns = GridCells.Fixed(COLUMNS),
             horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceMd),
             verticalArrangement = Arrangement.spacedBy(Tokens.SpaceMd),
+            // A lazy list clips at its viewport, and the viewport edge fell on
+            // the first and last item's edge, so their shadow and focus growth
+            // were cut while every item between them kept both.
+            contentPadding = PaddingValues(Tokens.SpaceSm),
             // A group with a memory: leaving the grid and coming back restores
             // the tile that was last focused, which is what every television
             // interface does and what makes a long grid usable at all.
