@@ -1,0 +1,106 @@
+! NoMercy Browser — seed filter list
+! Copyright (c) 2026 NoMercy Labs
+! SPDX-License-Identifier: MIT
+!
+! Authored here, deliberately small, and not a substitute for the upstream
+! lists. It exists so a television is protected on its very first page load
+! rather than after its first successful fetch, which on a box that spends most
+! of its life switched off can be days away.
+!
+! The real lists are fetched from their public upstreams at runtime — see
+! ListUpdater.SOURCES. They are not vendored here: EasyList's licensing is
+! contested and uBlock Origin's lists are GPLv3, and copying either into an MIT
+! repository would relicense work that is not ours.
+!
+! Everything below is a well-known third-party analytics or advertising origin.
+
+||doubleclick.net^$third-party
+||googlesyndication.com^$third-party
+||googletagservices.com^$third-party
+||googletagmanager.com^$third-party
+||google-analytics.com^$third-party
+||analytics.google.com^$third-party
+||adservice.google.com^$third-party
+||pagead2.googlesyndication.com^
+||scorecardresearch.com^$third-party
+||quantserve.com^$third-party
+||moatads.com^$third-party
+||adnxs.com^$third-party
+||rubiconproject.com^$third-party
+||pubmatic.com^$third-party
+||criteo.com^$third-party
+||criteo.net^$third-party
+||taboola.com^$third-party
+||outbrain.com^$third-party
+||sharethrough.com^$third-party
+||openx.net^$third-party
+||casalemedia.com^$third-party
+||360yield.com^$third-party
+||amazon-adsystem.com^$third-party
+||facebook.com/tr^$third-party
+||connect.facebook.net^$third-party
+||hotjar.com^$third-party
+||mouseflow.com^$third-party
+||fullstory.com^$third-party
+||mixpanel.com^$third-party
+||segment.io^$third-party
+||segment.com^$third-party
+||branch.io^$third-party
+||amplitude.com^$third-party
+||newrelic.com^$third-party
+||nr-data.net^$third-party
+||bugsnag.com^$third-party
+||sentry.io^$third-party
+||chartbeat.com^$third-party
+||parsely.com^$third-party
+||krxd.net^$third-party
+||bluekai.com^$third-party
+||demdex.net^$third-party
+||omtrdc.net^$third-party
+||everesttech.net^$third-party
+||adobedtm.com^$third-party
+||yandex.ru/metrika^$third-party
+||mc.yandex.ru^$third-party
+||clarity.ms^$third-party
+||bat.bing.com^$third-party
+||ads.linkedin.com^$third-party
+||analytics.tiktok.com^$third-party
+||ads.tiktok.com^$third-party
+||ads.twitter.com^$third-party
+||static.ads-twitter.com^$third-party
+||snap.licdn.com^$third-party
+||cdn.onesignal.com^$third-party
+||onesignal.com/api^$third-party
+||pushcrew.com^$third-party
+||optimizely.com^$third-party
+||crazyegg.com^$third-party
+||inspectlet.com^$third-party
+||luckyorange.com^$third-party
+||statcounter.com^$third-party
+||histats.com^$third-party
+||adroll.com^$third-party
+||teads.tv^$third-party
+||smartadserver.com^$third-party
+||adform.net^$third-party
+||zemanta.com^$third-party
+||revcontent.com^$third-party
+||mgid.com^$third-party
+||plista.com^$third-party
+||exoclick.com^$third-party
+||popads.net^$third-party
+||propellerads.com^$third-party
+||trafficjunky.net^$third-party
+!
+! Paths that are the same everywhere, whatever origin serves them.
+/pagead/js/adsbygoogle.js
+/beacon.js|$third-party
+/analytics.js|$third-party
+/gtag/js
+!
+! Element hiding for slots that survive the request being blocked. Kept generic
+! and few: a wrong selector here hides something somebody wanted to read.
+##.adsbygoogle
+##.ad-container
+##.advertisement
+##div[id^="google_ads_iframe"]
+##ins.adsbygoogle

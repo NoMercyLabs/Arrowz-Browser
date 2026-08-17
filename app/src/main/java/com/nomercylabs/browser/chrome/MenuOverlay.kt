@@ -6,6 +6,8 @@
 package com.nomercylabs.browser.chrome
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import com.nomercylabs.browser.R
@@ -50,14 +53,25 @@ fun MenuOverlay(
     onHistory: () -> Unit,
     onFind: () -> Unit,
     onToggleDesktopSite: () -> Unit,
+    isStaySignedIn: Boolean,
+    onToggleStaySignedIn: () -> Unit,
+    isFilteringOn: Boolean,
+    blockedOnPage: Int,
+    onToggleFiltering: () -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
 
+    // Scrollable, and it has to be. The menu outgrew 1080p when privacy landed,
+    // and a row past the bottom edge of a television is a row nobody can reach
+    // at all — the same failure as a press that does nothing, arrived at from
+    // the other direction. Compose brings a focused child into view, so the
+    // D-pad walks the whole list without anything else changing.
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(palette.surface.copy(alpha = SCRIM_ALPHA))
-            .overscan(),
+            .overscan()
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
     ) {
         BasicText(
@@ -118,7 +132,36 @@ fun MenuOverlay(
                 selected = false,
                 onClick = onReload,
             )
+            // Only offered for a real page, because it is a decision about one
+            // site and there is no site behind the home screen.
+            ListRow(
+                title = stringResource(R.string.menu_stay_signed_in),
+                subtitle = stringResource(
+                    if (isStaySignedIn) {
+                        R.string.menu_stay_signed_in_on
+                    } else {
+                        R.string.menu_stay_signed_in_off
+                    },
+                ),
+                selected = isStaySignedIn,
+                onClick = onToggleStaySignedIn,
+            )
         }
+
+        // The count is the subtitle rather than a badge: on a television a
+        // number nobody can read is decoration, and this one is the only
+        // evidence the viewer ever sees that the filtering is doing anything.
+        ListRow(
+            title = stringResource(R.string.menu_privacy),
+            subtitle = when {
+                !isFilteringOn -> stringResource(R.string.menu_privacy_off)
+                blockedOnPage > 0 ->
+                    pluralStringResource(R.plurals.menu_privacy_blocked, blockedOnPage, blockedOnPage)
+                else -> stringResource(R.string.menu_privacy_on)
+            },
+            selected = isFilteringOn,
+            onClick = onToggleFiltering,
+        )
 
         ListRow(
             title = stringResource(R.string.menu_bookmarks),

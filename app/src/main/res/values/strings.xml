@@ -70,6 +70,18 @@
     <string name="a11y_page_failed">%1$s did not load</string>
     <string name="a11y_tab_opened">New tab</string>
     <string name="a11y_tab_switched">Showing %1$s</string>
+    <string name="menu_stay_signed_in">Stay signed in here</string>
+    <string name="menu_stay_signed_in_on">Kept when the browser closes</string>
+    <string name="menu_stay_signed_in_off">Signed out when the browser closes</string>
+
+    <string name="menu_privacy">Tracker blocking</string>
+    <string name="menu_privacy_on">On</string>
+    <string name="menu_privacy_off">Off, so this page loads everything</string>
+    <plurals name="menu_privacy_blocked">
+        <item quantity="one">On, %1$d blocked on this page</item>
+        <item quantity="other">On, %1$d blocked on this page</item>
+    </plurals>
+
     <string name="a11y_role_tab">Tab</string>
     <string name="a11y_selected">Showing now</string>
 </resources>

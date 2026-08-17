@@ -31,12 +31,18 @@ class NmWebViewClient(
      * Null in release, where the interceptor does nothing at all.
      */
     private val assetLoader: WebViewAssetLoader? = null,
+    /**
+     * The tracker filter, asked after the asset loader so a debug test page is
+     * never subject to it. Runs on WebView's network threads.
+     */
+    private val onInterceptRequest: (WebResourceRequest) -> WebResourceResponse? = { null },
 ) : WebViewClient() {
 
     override fun shouldInterceptRequest(
         view: WebView,
         request: WebResourceRequest,
-    ): WebResourceResponse? = assetLoader?.shouldInterceptRequest(request.url)
+    ): WebResourceResponse? =
+        assetLoader?.shouldInterceptRequest(request.url) ?: onInterceptRequest(request)
 
     override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
         // Re-injected on every navigation rather than once per WebView, so a

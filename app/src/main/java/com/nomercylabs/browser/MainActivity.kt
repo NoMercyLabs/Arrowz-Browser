@@ -28,6 +28,11 @@ import com.nomercylabs.browser.a11y.TextScale
 import com.nomercylabs.browser.browser.PageError
 import com.nomercylabs.browser.browser.asJsString
 import com.nomercylabs.browser.chrome.FindBar
+import com.nomercylabs.browser.privacy.CookiePolicy
+import com.nomercylabs.browser.privacy.FilterEngine
+import com.nomercylabs.browser.privacy.ListUpdater
+import com.nomercylabs.browser.privacy.RequestFilter
+import java.io.File
 import com.nomercylabs.browser.chrome.LibraryRow
 import com.nomercylabs.browser.chrome.LibraryScreen
 import com.nomercylabs.browser.chrome.PermissionAsk
@@ -160,6 +165,9 @@ class MainActivity : ComponentActivity() {
     /** Origins the viewer asked to see the desktop build of, restored on the way
      *  in so the choice outlives the tab it was made in. */
     private var desktopOrigins: Set<String> by mutableStateOf(emptySet())
+    private var signedInOrigins: Set<String> by mutableStateOf(emptySet())
+
+    private val cookiePolicy = CookiePolicy(allowedOrigins = { signedInOrigins })
 
     private var pendingFileChooser: android.webkit.ValueCallback<Array<Uri>>? = null
 
@@ -167,6 +175,10 @@ class MainActivity : ComponentActivity() {
     private var inputMode: InputMode by mutableStateOf(InputMode.Cursor)
 
     private lateinit var screenReader: ScreenReaderWatch
+
+    private val filters = FilterEngine()
+    private var filteringEnabled: Boolean by mutableStateOf(true)
+    private var blockedOnPage: Int by mutableStateOf(0)
 
     private val announcer = Announcer(
         isActive = { screenReader.isActive },
@@ -290,6 +302,9 @@ class MainActivity : ComponentActivity() {
         refreshHome()
         loadThemeMode()
         loadDesktopOrigins()
+        loadSignedInOrigins()
+        loadFilterPreference()
+        loadFilters()
 
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
 
@@ -368,6 +383,12 @@ class MainActivity : ComponentActivity() {
                     onPickSuggestion = { suggestion -> navigate(suggestion.url) },
                     onVoice = { startVoiceInput() },
                     onMenu = { showChrome(ChromeSurface.Menu) },
+                    isStaySignedIn =
+                        HomeContent.originOf(host?.state?.url ?: "") in signedInOrigins,
+                    onToggleStaySignedIn = { toggleStaySignedIn() },
+                    isFilteringOn = filteringEnabled,
+                    blockedOnPage = blockedOnPage,
+                    onToggleFiltering = { toggleFiltering() },
                     isDesktopSite = HomeContent.originOf(host?.state?.url ?: "") in desktopOrigins,
                     onToggleDesktopSite = { toggleDesktopSite() },
                     onBookmarks = { showChrome(ChromeSurface.Bookmarks) },
@@ -415,6 +436,16 @@ class MainActivity : ComponentActivity() {
             now = { SystemClock.uptimeMillis() },
             onOpenField = { field -> openField(field) },
         )
+        page.requestFilter = RequestFilter(
+            engine = filters,
+            isEnabled = { filteringEnabled },
+            // Off a network thread onto the one that owns the state Compose
+            // reads, and only for the tab on screen: a background tab counting
+            // up would relabel the shield over whatever is in front.
+            onBlocked = { total ->
+                runOnUiThread { if (registry.active?.page === page) blockedOnPage = total }
+            },
+        )
         configureHost(page, tabId)
 
         page.onRebuildRequired { savedState, url ->
@@ -436,6 +467,11 @@ class MainActivity : ComponentActivity() {
             // gone with it. Keeping either exempts this tab from suspension for
             // the rest of its life.
             page.formBridge?.forgetPage()
+            // Before anything is fetched for the new document, or the first
+            // requests are judged against the previous page's host.
+            page.requestFilter?.pageChanged(url)
+            if (registry.active?.page === page) blockedOnPage = 0
+            applyCosmeticRules(page)
             chooseInputMode(url)
             // A new document, so whatever was last said describes a page that is
             // no longer on screen and must not suppress an identical sentence
@@ -485,6 +521,7 @@ class MainActivity : ComponentActivity() {
                 readAsset("spatialnav.js"),
                 readAsset("formbridge.js"),
                 readAsset("captions.js"),
+                readAsset("cosmetic.js"),
             ),
             assetLoader = if (BuildConfig.DEBUG) {
                 WebViewAssetLoader.Builder()
@@ -500,6 +537,7 @@ class MainActivity : ComponentActivity() {
             onDownload = { url, agent, disposition, mimeType ->
                 startDownload(url, agent, disposition, mimeType)
             },
+            onInterceptRequest = { request -> page.requestFilter?.intercept(request) },
         )
         // One interface per tab, so every report the page makes carries which
         // tab it came from.
@@ -508,6 +546,27 @@ class MainActivity : ComponentActivity() {
         // Re-added on every rebuild: a renderer death takes the interfaces with
         // it, and a form bridge missing from a rebuilt tab fails as silence.
         page.formBridge?.let { bridge -> page.addBridge("NmForms", bridge) }
+    }
+
+    private fun loadFilterPreference() = storeThread.execute {
+        val stored: String? = store.preference(FILTER_KEY)
+        runOnUiThread { filteringEnabled = stored != FILTER_OFF }
+    }
+
+    /**
+     * Off is a per-browser choice rather than per site, because the reason to
+     * turn it off is nearly always "this one page is broken and I want to see
+     * it", and a setting that has to be found again to turn back on is a setting
+     * that stays off.
+     */
+    private fun toggleFiltering() {
+        filteringEnabled = !filteringEnabled
+        val value: String = if (filteringEnabled) FILTER_ON else FILTER_OFF
+        storeThread.execute { store.setPreference(FILTER_KEY, value) }
+        // The page in front was built under the old answer, so it has to be
+        // built again for the change to mean anything.
+        host?.reload()
+        showChrome(ChromeSurface.None)
     }
 
     private fun loadThemeMode() = storeThread.execute {
@@ -557,11 +616,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadDesktopOrigins() = storeThread.execute {
-        val stored: Set<String> = (store.preference(DESKTOP_ORIGINS_KEY) ?: "")
-            .split(',')
-            .filter { origin -> origin.isNotBlank() }
-            .toSet()
+        val stored: Set<String> = originSet(DESKTOP_ORIGINS_KEY)
         runOnUiThread { desktopOrigins = stored }
+    }
+
+    private fun loadSignedInOrigins() = storeThread.execute {
+        val stored: Set<String> = originSet(SIGNED_IN_ORIGINS_KEY)
+        runOnUiThread { signedInOrigins = stored }
+    }
+
+    private fun originSet(key: String): Set<String> = (store.preference(key) ?: "")
+        .split(',')
+        .filter { origin -> origin.isNotBlank() }
+        .toSet()
+
+    /**
+     * Whether this site's cookies survive the browser closing.
+     *
+     * A television is shared. Keeping every session hands the next person in the
+     * room somebody else's mail; keeping none means nobody can stay signed in
+     * anywhere. So it is a choice, per site, and it is theirs.
+     */
+    private fun toggleStaySignedIn() {
+        val origin: String = HomeContent.originOf(host?.state?.url ?: "")
+        if (origin.isEmpty()) return
+        signedInOrigins =
+            if (origin in signedInOrigins) signedInOrigins - origin else signedInOrigins + origin
+        val stored: String = signedInOrigins.joinToString(",")
+        storeThread.execute { store.setPreference(SIGNED_IN_ORIGINS_KEY, stored) }
+        showChrome(ChromeSurface.None)
     }
 
     /**
@@ -1113,7 +1196,13 @@ class MainActivity : ComponentActivity() {
             showChrome(ChromeSurface.None)
             true
         }
-        Command.ExitApp -> { finish(); true }
+        // The wipe runs before finish() rather than in onDestroy: a process the
+        // system reclaims never reaches onDestroy, and a session that survives
+        // because the television was busy is a session the next person inherits.
+        Command.ExitApp -> {
+            cookiePolicy.wipeSession { finish() }
+            true
+        }
 
         is Command.StartMove -> {
             cursor.press(command.key, SystemClock.uptimeMillis())
@@ -1254,6 +1343,42 @@ class MainActivity : ComponentActivity() {
             "window.__nmCaptions && window.__nmCaptions.apply(${css.asJsString()})",
             null,
         )
+    }
+
+    /**
+     * Element hiding, applied at document start rather than at load.
+     *
+     * Later than this and the slot is drawn before it is hidden, which reads as
+     * the page flickering rather than as anything being blocked.
+     */
+    private fun applyCosmeticRules(page: WebViewHost) {
+        val css: String = if (filteringEnabled) {
+            page.requestFilter?.cssForCurrentPage().orEmpty()
+        } else {
+            ""
+        }
+        page.view?.evaluateJavascript(
+            "window.__nmHide && window.__nmHide.apply(${css.asJsString()})",
+            null,
+        )
+    }
+
+    /**
+     * Reads the lists and keeps them current, entirely off the UI thread.
+     *
+     * The seed ships in the APK so a television is protected on its first page
+     * load rather than after its first successful fetch, which on a box that is
+     * switched off more than it is on could be days.
+     */
+    private fun loadFilters() = storeThread.execute {
+        val updater = ListUpdater(
+            cacheDirectory = File(filesDir, FILTER_DIRECTORY),
+            now = { System.currentTimeMillis() },
+            readSeed = { readAsset("filters-seed.txt") },
+        )
+        filters.replaceRules(updater.load())
+        if (!updater.isDue()) return@execute
+        if (updater.update()) filters.replaceRules(updater.load())
     }
 
     /** A page finishing is a visual event with no announcement of its own, and a
@@ -1416,9 +1541,18 @@ class MainActivity : ComponentActivity() {
         const val TABS_TAG: String = "NmTabs"
         const val THEME_KEY: String = "theme.mode"
         const val DESKTOP_ORIGINS_KEY: String = "ua.desktop.origins"
+        const val SIGNED_IN_ORIGINS_KEY: String = "cookies.keep"
         const val DECISION_ALLOW: String = "allow"
         const val DECISION_BLOCK: String = "block"
         const val MODE_KEY_PREFIX: String = "mode."
+        const val FILTER_KEY: String = "privacy.filtering"
+        const val FILTER_ON: String = "on"
+        const val FILTER_OFF: String = "off"
+
+        /** Under filesDir, never in the cache directory: the system may empty
+         *  that at any moment, and a television that wakes up unprotected
+         *  because the OS wanted 30MB back is the failure this whole slice is. */
+        const val FILTER_DIRECTORY: String = "filters"
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
@@ -1453,6 +1587,11 @@ private fun BrowserScreen(
     onMenu: () -> Unit,
     isDesktopSite: Boolean,
     onToggleDesktopSite: () -> Unit,
+    isStaySignedIn: Boolean,
+    onToggleStaySignedIn: () -> Unit,
+    isFilteringOn: Boolean,
+    blockedOnPage: Int,
+    onToggleFiltering: () -> Unit,
     onBookmarks: () -> Unit,
     onHistory: () -> Unit,
     onFind: () -> Unit,
@@ -1670,6 +1809,11 @@ private fun BrowserScreen(
                 onHistory = onHistory,
                 onFind = onFind,
                 onToggleDesktopSite = onToggleDesktopSite,
+                isStaySignedIn = isStaySignedIn,
+                onToggleStaySignedIn = onToggleStaySignedIn,
+                isFilteringOn = isFilteringOn,
+                blockedOnPage = blockedOnPage,
+                onToggleFiltering = onToggleFiltering,
             )
 
             ChromeSurface.Tabs -> TabList(

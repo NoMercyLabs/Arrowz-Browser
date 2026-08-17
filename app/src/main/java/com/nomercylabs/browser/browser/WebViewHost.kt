@@ -80,6 +80,10 @@ class WebViewHost(initialView: WebView) : TabPage {
      */
     var formBridge: FormBridge? = null
 
+    /** This tab's tracker filter. Per tab, because what counts as third-party
+     *  depends on the page the requests belong to. */
+    var requestFilter: com.nomercylabs.browser.privacy.RequestFilter? = null
+
     override val hasDirtyForm: Boolean get() = formBridge?.hasDirtyForm == true
 
     /**
@@ -119,6 +123,8 @@ class WebViewHost(initialView: WebView) : TabPage {
         ) -> Boolean = { _, _ -> false },
         onDownload: (url: String, userAgent: String, contentDisposition: String, mimeType: String) -> Unit =
             { _, _, _, _ -> },
+        onInterceptRequest: (android.webkit.WebResourceRequest) -> android.webkit.WebResourceResponse? =
+            { null },
     ) {
         val target: WebView = view ?: return
         WebSettingsFactory.apply(target, userAgent, isDarkTheme, textZoomPercent)
@@ -139,6 +145,7 @@ class WebViewHost(initialView: WebView) : TabPage {
             onInjectAtDocumentStart = { injected ->
                 scriptsAtDocumentStart.forEach { script -> injected.evaluateJavascript(script, null) }
             },
+            onInterceptRequest = onInterceptRequest,
         )
 
         target.webChromeClient = NmWebChromeClient(
