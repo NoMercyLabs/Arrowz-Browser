@@ -107,6 +107,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.nomercylabs.arrowz.data.Bookmark
 import com.nomercylabs.arrowz.data.BrowserStore
 import com.nomercylabs.arrowz.data.HomeContent
+import com.nomercylabs.arrowz.data.SitePermission
 import com.nomercylabs.arrowz.data.SiteIconBridge
 import com.nomercylabs.arrowz.data.SiteIcons
 import com.nomercylabs.arrowz.data.SqliteBrowserStore
@@ -155,6 +156,9 @@ class MainActivity : ComponentActivity() {
     private val holdTimers: MutableMap<RemoteKey, Runnable> = mutableMapOf()
     private var chrome: ChromeSurface by mutableStateOf(ChromeSurface.None)
     private var menuSection: MenuSection by mutableStateOf(MenuSection.Root)
+    private var sitePermissionList: List<SitePermission> by mutableStateOf(emptyList())
+    private var downloadList: List<Pair<String, String>> by mutableStateOf(emptyList())
+    private var searchEngineId: String by mutableStateOf(UrlOrSearch.ENGINES.first().id)
 
     /** Whether the address field has the system keyboard up. While it does, the
      *  IME owns every directional key, so BACK has to mean "close it". */
@@ -311,6 +315,7 @@ class MainActivity : ComponentActivity() {
         loadDesktopOrigins()
         loadSignedInOrigins()
         loadFilterPreference()
+        loadSearchEnginePreference()
         loadFilters()
 
         fullscreen = FullscreenController(this) { active -> fullscreenActive = active }
@@ -436,7 +441,22 @@ class MainActivity : ComponentActivity() {
                     onCloseTab = { id -> closeTab(id) },
                     onCloseActiveTab = { registry.active?.id?.let { id -> closeTab(id) } },
                     menuSection = menuSection,
-                    onMenuSection = { next -> menuSection = next },
+                    searchEngineId = searchEngineId,
+                    onPickSearchEngine = { id -> pickSearchEngine(id) },
+                    permissions = sitePermissionList,
+                    onForgetPermission = { permission -> forgetSitePermission(permission) },
+                    downloads = downloadList,
+                    onClearHistory = { clearHistory() },
+                    onClearCookies = { clearCookies() },
+                    onClearIcons = { clearSiteIcons() },
+                    onClearPermissions = { clearSitePermissions() },
+                    onMenuSection = { next ->
+                        // Read on the way in. Both lists change while this
+                        // screen is closed, so a cached copy is a stale one.
+                        if (next == MenuSection.Permissions) refreshSitePermissions()
+                        if (next == MenuSection.Downloads) refreshDownloads()
+                        menuSection = next
+                    },
                     onNewTab = { newTab() },
                 )
             }
@@ -582,6 +602,94 @@ class MainActivity : ComponentActivity() {
                 }
             },
         )
+    }
+
+    private fun loadSearchEnginePreference() = storeThread.execute {
+        val stored: String? = store.preference(SEARCH_ENGINE_KEY)
+        runOnUiThread { searchEngineId = UrlOrSearch.engineById(stored).id }
+    }
+
+    private fun pickSearchEngine(id: String) {
+        searchEngineId = id
+        storeThread.execute { store.setPreference(SEARCH_ENGINE_KEY, id) }
+    }
+
+    /**
+     * What the system downloader knows, read when the screen asks for it.
+     *
+     * Downloads go through DownloadManager so they survive the browser being
+     * killed, which means the browser is not the thing that knows about them and
+     * has to ask. Nothing is cached: a download finishes while this screen is
+     * closed far more often than while it is open.
+     */
+    private fun refreshDownloads() = storeThread.execute {
+        val found = mutableListOf<Pair<String, String>>()
+        runCatching {
+            val manager: DownloadManager = getSystemService(DownloadManager::class.java)
+            manager.query(DownloadManager.Query()).use { cursor ->
+                while (cursor.moveToNext() && found.size < DOWNLOAD_LIMIT) {
+                    val title: String = cursor
+                        .getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE))
+                        .orEmpty()
+                    val status: Int = cursor
+                        .getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    val bytes: Long = cursor
+                        .getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                    found += title.ifBlank { getString(R.string.menu_downloads) } to
+                        describeDownload(status, bytes)
+                }
+            }
+        }
+        runOnUiThread { downloadList = found }
+    }
+
+    private fun describeDownload(status: Int, totalBytes: Long): String {
+        val state: String = when (status) {
+            DownloadManager.STATUS_SUCCESSFUL -> getString(R.string.menu_download_done)
+            DownloadManager.STATUS_FAILED -> getString(R.string.menu_download_failed)
+            else -> getString(R.string.menu_download_running)
+        }
+        return if (totalBytes > 0) {
+            state + ", " + android.text.format.Formatter.formatShortFileSize(this, totalBytes)
+        } else {
+            state
+        }
+    }
+
+    private fun refreshSitePermissions() = storeThread.execute {
+        val answers: List<SitePermission> = store.sitePermissions()
+        runOnUiThread { sitePermissionList = answers }
+    }
+
+    private fun forgetSitePermission(permission: SitePermission) {
+        storeThread.execute {
+            store.forgetSitePermission(permission.origin, permission.kind)
+            val answers: List<SitePermission> = store.sitePermissions()
+            runOnUiThread { sitePermissionList = answers }
+        }
+    }
+
+    private fun clearSitePermissions() {
+        storeThread.execute {
+            store.clearSitePermissions()
+            runOnUiThread { sitePermissionList = emptyList() }
+        }
+    }
+
+    /** Every picture a tile draws. Dropped as one, because a viewer clearing
+     *  what the browser knows about them means this too. */
+    private fun clearSiteIcons() = storeThread.execute {
+        runCatching { java.io.File(filesDir, ICON_DIRECTORY).deleteRecursively() }
+    }
+
+    private fun clearHistory() = storeThread.execute { store.clearHistory() }
+
+    /** Everything, including the origins allowed to stay signed in. Clearing
+     *  browsing data that quietly kept some of it is not clearing it. */
+    private fun clearCookies() {
+        signedInOrigins = emptySet()
+        storeThread.execute { store.setPreference(SIGNED_IN_ORIGINS_KEY, "") }
+        cookiePolicy.wipeSession()
     }
 
     private fun loadFilterPreference() = storeThread.execute {
@@ -1630,10 +1738,11 @@ class MainActivity : ComponentActivity() {
 
     private fun navigate(typed: String) {
         registry.active?.isHome = false
-        when (val destination = UrlOrSearch.resolve(typed, UrlOrSearch.DUCKDUCKGO)) {
+        val engine: UrlOrSearch.Engine = UrlOrSearch.engineById(searchEngineId)
+        when (val destination = UrlOrSearch.resolve(typed, engine.template)) {
             is UrlOrSearch.Destination.Url -> host?.load(destination.url)
             is UrlOrSearch.Destination.Search ->
-                host?.load(UrlOrSearch.searchUrl(destination.query, UrlOrSearch.DUCKDUCKGO))
+                host?.load(UrlOrSearch.searchUrl(destination.query, engine.template))
             UrlOrSearch.Destination.Blocked, UrlOrSearch.Destination.Nothing -> Unit
         }
         showChrome(ChromeSurface.None)
@@ -1660,6 +1769,11 @@ class MainActivity : ComponentActivity() {
         const val DECISION_BLOCK: String = "block"
         const val MODE_KEY_PREFIX: String = "mode."
         const val FILTER_KEY: String = "privacy.filtering"
+        const val SEARCH_ENGINE_KEY: String = "search.engine"
+
+        /** Enough to see what is there on a television. A downloads list is
+         *  something to check, not something to page through. */
+        const val DOWNLOAD_LIMIT: Int = 50
         const val FILTER_ON: String = "on"
         const val FILTER_OFF: String = "off"
 
@@ -1758,6 +1872,15 @@ private fun BrowserScreen(
     onCloseActiveTab: () -> Unit,
     menuSection: MenuSection,
     onMenuSection: (MenuSection) -> Unit,
+    searchEngineId: String,
+    onPickSearchEngine: (String) -> Unit,
+    permissions: List<SitePermission>,
+    onForgetPermission: (SitePermission) -> Unit,
+    downloads: List<Pair<String, String>>,
+    onClearHistory: () -> Unit,
+    onClearCookies: () -> Unit,
+    onClearIcons: () -> Unit,
+    onClearPermissions: () -> Unit,
     onNewTab: () -> Unit,
 ) {
     val configuration = LocalConfiguration.current
@@ -1947,6 +2070,15 @@ private fun BrowserScreen(
                 blockedOnPage = blockedOnPage,
                 onToggleFiltering = onToggleFiltering,
                 versionName = BuildConfig.VERSION_NAME,
+                searchEngineId = searchEngineId,
+                onPickSearchEngine = onPickSearchEngine,
+                permissions = permissions,
+                onForgetPermission = onForgetPermission,
+                downloads = downloads,
+                onClearHistory = onClearHistory,
+                onClearCookies = onClearCookies,
+                onClearIcons = onClearIcons,
+                onClearPermissions = onClearPermissions,
             )
 
             ChromeSurface.Tabs -> TabList(

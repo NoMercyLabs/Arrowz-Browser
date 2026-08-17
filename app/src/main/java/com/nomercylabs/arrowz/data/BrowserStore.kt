@@ -37,6 +37,12 @@ interface BrowserStore {
     fun sitePermission(origin: String, kind: String): String?
     fun setSitePermission(origin: String, kind: String, decision: String)
 
+    /** Every answer given, so a decision made once can be seen and taken back.
+     *  A permission a viewer cannot find is a permission they cannot withdraw. */
+    fun sitePermissions(): List<SitePermission>
+    fun forgetSitePermission(origin: String, kind: String)
+    fun clearSitePermissions()
+
     /** Settings live in the same store as everything else, so they carry the
      *  same identity fields and travel with a sync when one arrives. */
     fun preference(key: String): String?
@@ -233,6 +239,30 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
         ).use { cursor ->
             return if (cursor.moveToFirst()) cursor.getString(0) else null
         }
+    }
+
+    override fun sitePermissions(): List<SitePermission> {
+        val answers = mutableListOf<SitePermission>()
+        helper.readableDatabase.rawQuery(
+            "SELECT origin, kind, decision FROM site_permissions ORDER BY origin, kind",
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                answers += SitePermission(cursor.getString(0), cursor.getString(1), cursor.getString(2))
+            }
+        }
+        return answers
+    }
+
+    override fun forgetSitePermission(origin: String, kind: String) {
+        helper.writableDatabase.execSQL(
+            "DELETE FROM site_permissions WHERE origin = ? AND kind = ?",
+            arrayOf(origin, kind),
+        )
+    }
+
+    override fun clearSitePermissions() {
+        helper.writableDatabase.execSQL("DELETE FROM site_permissions")
     }
 
     override fun setSitePermission(origin: String, kind: String, decision: String) {

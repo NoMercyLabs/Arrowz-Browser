@@ -26,6 +26,9 @@ data class Bookmark(
 
 data class Visit(val origin: String, val count: Int, val lastVisitedAt: Long)
 
+/** An answer given once to a camera, microphone or location request. */
+data class SitePermission(val origin: String, val kind: String, val decision: String)
+
 /** One page, as opposed to [Visit], which is one site. */
 data class HistoryEntry(
     val id: String,

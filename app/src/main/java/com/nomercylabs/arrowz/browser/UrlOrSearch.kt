@@ -90,5 +90,23 @@ object UrlOrSearch {
     const val QUERY_PLACEHOLDER: String = "{query}"
     const val DUCKDUCKGO: String = "https://duckduckgo.com/?q=$QUERY_PLACEHOLDER"
 
+    /**
+     * What typing a phrase reaches, and what the home button opens.
+     *
+     * There is no default to defend in a store listing: the first entry is the
+     * one that asks least of the person using it, and the rest are here because
+     * a browser that decides this for you is the thing this one is not.
+     */
+    data class Engine(val id: String, val label: String, val template: String, val home: String)
+
+    val ENGINES: List<Engine> = listOf(
+        Engine("ddg", "DuckDuckGo", DUCKDUCKGO, "https://duckduckgo.com/"),
+        Engine("brave", "Brave Search", "https://search.brave.com/search?q=$QUERY_PLACEHOLDER", "https://search.brave.com/"),
+        Engine("google", "Google", "https://www.google.com/search?q=$QUERY_PLACEHOLDER", "https://www.google.com/"),
+        Engine("startpage", "Startpage", "https://www.startpage.com/sp/search?query=$QUERY_PLACEHOLDER", "https://www.startpage.com/"),
+    )
+
+    fun engineById(id: String?): Engine = ENGINES.firstOrNull { engine -> engine.id == id } ?: ENGINES.first()
+
     private const val UNRESERVED: String = "-_.~"
 }

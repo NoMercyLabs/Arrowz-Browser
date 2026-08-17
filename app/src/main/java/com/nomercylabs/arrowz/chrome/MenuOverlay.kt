@@ -22,6 +22,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import com.nomercylabs.arrowz.R
+import com.nomercylabs.arrowz.browser.UrlOrSearch
+import com.nomercylabs.arrowz.data.HomeContent
+import com.nomercylabs.arrowz.data.SitePermission
 import com.nomercylabs.arrowz.ui.ListRow
 import com.nomercylabs.arrowz.ui.LocalPalette
 import com.nomercylabs.arrowz.ui.Palette
@@ -38,6 +41,10 @@ enum class MenuSection(val titleRes: Int) {
     Library(R.string.menu_library),
     Settings(R.string.menu_settings),
     About(R.string.menu_about),
+    SearchEngine(R.string.menu_search_engine),
+    Permissions(R.string.menu_permissions),
+    ClearData(R.string.menu_clear_data),
+    Downloads(R.string.menu_downloads),
 }
 
 /**
@@ -83,6 +90,17 @@ fun MenuOverlay(
     blockedOnPage: Int,
     onToggleFiltering: () -> Unit,
     versionName: String,
+    searchEngineId: String,
+    onPickSearchEngine: (String) -> Unit,
+    permissions: List<SitePermission>,
+    onForgetPermission: (SitePermission) -> Unit,
+    /** Title and state, already read from the system downloader. The menu does
+     *  no querying of its own. */
+    downloads: List<Pair<String, String>>,
+    onClearHistory: () -> Unit,
+    onClearCookies: () -> Unit,
+    onClearIcons: () -> Unit,
+    onClearPermissions: () -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
 
@@ -274,6 +292,12 @@ fun MenuOverlay(
                         selected = false,
                         onClick = onHistory,
                     )
+                    ListRow(
+                        title = stringResource(R.string.menu_downloads),
+                        subtitle = "",
+                        selected = false,
+                        onClick = { onSection(MenuSection.Downloads) },
+                    )
                 }
 
                 MenuSection.Settings -> {
@@ -290,6 +314,109 @@ fun MenuOverlay(
                         onClick = onCycleTheme,
                         requestInitialFocus = true,
                     )
+                    ListRow(
+                        title = stringResource(R.string.menu_search_engine),
+                        subtitle = UrlOrSearch.engineById(searchEngineId).label,
+                        selected = false,
+                        onClick = { onSection(MenuSection.SearchEngine) },
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_permissions),
+                        subtitle = "",
+                        selected = false,
+                        onClick = { onSection(MenuSection.Permissions) },
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_clear_data),
+                        subtitle = "",
+                        selected = false,
+                        onClick = { onSection(MenuSection.ClearData) },
+                    )
+                }
+
+                MenuSection.SearchEngine -> {
+                    UrlOrSearch.ENGINES.forEachIndexed { index, engine ->
+                        ListRow(
+                            title = engine.label,
+                            subtitle = HomeContent.originOf(engine.home),
+                            selected = engine.id == searchEngineId,
+                            onClick = { onPickSearchEngine(engine.id) },
+                            requestInitialFocus = index == 0,
+                        )
+                    }
+                }
+
+                MenuSection.Permissions -> {
+                    if (permissions.isEmpty()) {
+                        ListRow(
+                            title = stringResource(R.string.menu_permissions_empty),
+                            subtitle = "",
+                            selected = false,
+                            onClick = {},
+                            requestInitialFocus = true,
+                        )
+                    }
+                    permissions.forEachIndexed { index, permission ->
+                        ListRow(
+                            title = permission.origin,
+                            subtitle = permissionSubtitle(permission),
+                            selected = permission.decision == ALLOW,
+                            onClick = { onForgetPermission(permission) },
+                            requestInitialFocus = index == 0,
+                        )
+                    }
+                }
+
+                MenuSection.ClearData -> {
+                    // Four rows rather than one button. "Clear everything" on a
+                    // television is one press away from someone who meant to
+                    // close the menu, and these are genuinely different losses.
+                    ListRow(
+                        title = stringResource(R.string.menu_clear_history),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onClearHistory,
+                        requestInitialFocus = true,
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_clear_cookies),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onClearCookies,
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_clear_icons),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onClearIcons,
+                    )
+                    ListRow(
+                        title = stringResource(R.string.menu_clear_permissions),
+                        subtitle = "",
+                        selected = false,
+                        onClick = onClearPermissions,
+                    )
+                }
+
+                MenuSection.Downloads -> {
+                    if (downloads.isEmpty()) {
+                        ListRow(
+                            title = stringResource(R.string.menu_downloads_empty),
+                            subtitle = "",
+                            selected = false,
+                            onClick = {},
+                            requestInitialFocus = true,
+                        )
+                    }
+                    downloads.forEachIndexed { index, download ->
+                        ListRow(
+                            title = download.first,
+                            subtitle = download.second,
+                            selected = false,
+                            onClick = {},
+                            requestInitialFocus = index == 0,
+                        )
+                    }
                 }
 
                 MenuSection.About -> {
@@ -305,5 +432,27 @@ fun MenuOverlay(
         }
     }
 }
+
+/** Which permission, and what was answered, as one line a reader speaks once. */
+@Composable
+private fun permissionSubtitle(permission: SitePermission): String {
+    val kind: String = stringResource(
+        when (permission.kind) {
+            "camera" -> R.string.permission_camera
+            "microphone" -> R.string.permission_microphone
+            else -> R.string.permission_location
+        },
+    )
+    val decision: String = stringResource(
+        if (permission.decision == ALLOW) {
+            R.string.permission_decision_allow
+        } else {
+            R.string.permission_decision_block
+        },
+    )
+    return "$kind, $decision"
+}
+
+private const val ALLOW: String = "allow"
 
 private const val SCRIM_ALPHA: Float = 0.97f
