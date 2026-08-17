@@ -171,4 +171,6 @@ zero and shows nothing.
 - Media checks pass: media session published, audio focus taken, fullscreen entered and exited, background audio surviving HOME
 - Accessibility pass with TalkBack enabled
 - Data safety declaration still matches reality, which the CI analytics gate is what keeps honest
-- Privacy policy URL live and matching `docs/legal/privacy-policy.md`
+- Privacy policy URL live and matching `docs/legal/privacy-policy.md` — done,
+  served from that file at
+  `https://nomercylabs.github.io/Arrowz-Browser/legal/privacy-policy.html`

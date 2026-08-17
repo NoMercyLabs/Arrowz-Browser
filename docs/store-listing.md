@@ -61,7 +61,14 @@ The expected outcome is a high age rating. That is correct for a browser and is 
 
 ## Privacy policy URL
 
-`docs/legal/privacy-policy.md` in this repository is the source. It needs a public URL before submission; `nomercy.tv/labs/arrowz/privacy` is the obvious home.
+`docs/legal/privacy-policy.md` in this repository is the source, and it is served
+publicly from that same file over GitHub Pages:
+
+**https://nomercylabs.github.io/Arrowz-Browser/legal/privacy-policy.html**
+
+That is the URL the Play listing takes. Pages builds from `master:/docs`, so the
+published page and the file a reader can audit in the repository are one
+document rather than two that drift.
 
 ## Other console requirements
 
