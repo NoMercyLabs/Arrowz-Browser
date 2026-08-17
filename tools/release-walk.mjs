@@ -8,7 +8,7 @@
  * so a press that changed nothing is visible as a frame identical to the one
  * before it.
  *
- *   node release-walk.mjs <serial> <presses> <outdir>
+ *   node release-walk.mjs <serial> <presses> <outdir> [url]
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -40,6 +40,17 @@ function frame(name) {
   const png = adb(['exec-out', 'screencap', '-p'], true);
   writeFileSync(`${outDir}/${name}.png`, png);
   return { bytes: png.length, hash: createHash('sha1').update(png).digest('hex').slice(0, 12) };
+}
+
+// Opened here when a page is named, so the whole check is one command rather
+// than a command with a remembered setup step in front of it.
+const url = process.argv[5];
+if (url) {
+  adb(['shell', 'am', 'force-stop', PACKAGE]);
+  sleep(1500);
+  adb(['shell', 'am', 'start', '-n', `${PACKAGE}/com.nomercylabs.browser.MainActivity`,
+       '-a', 'android.intent.action.VIEW', '-d', url]);
+  sleep(10000);
 }
 
 sleep(2000);

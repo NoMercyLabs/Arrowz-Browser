@@ -82,9 +82,30 @@ upload key. Open a page, enter focus mode, and check the tracker count in the
 menu: those three together prove the injected scripts, the JavaScript bridges
 and the request filter all survived minification.
 
+Then drive it, because "it rendered" and "it navigates" are different claims and
+the black screen passed the first one for a while:
+
+```
+node tools/release-walk.mjs 192.168.2.80:5555 8 /tmp/release-frames \
+  https://en.wikipedia.org/wiki/Television
+```
+
+The release variant is not debuggable, so it carries no devtools socket and the
+harness that reads focus over CDP cannot see it at all. This presses a key, takes
+a screenshot and compares the frames: a press that changed nothing is a frame
+identical to the one before it, and a black screen is a run of identical frames
+from the first press. It reports how many frames matched their predecessor,
+which must be zero, and leaves the images behind so the focus ring can be looked
+at rather than inferred.
+
+This is a hardware check and cannot move into CI. CI has no screen and no
+television, and the failure it exists to catch is one that builds cleanly, exits
+zero and shows nothing.
+
 ## Before promoting to production
 
 - Every function reachable with six keycodes on real hardware
+- `tools/release-walk.mjs` run against the **release** build, reporting no frame identical to the one before it
 - Media checks pass: media session published, audio focus taken, fullscreen entered and exited, background audio surviving HOME
 - Accessibility pass with TalkBack enabled
 - Data safety declaration still matches reality, which the CI analytics gate is what keeps honest
