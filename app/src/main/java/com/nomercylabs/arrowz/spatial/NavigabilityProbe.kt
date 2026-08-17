@@ -11,6 +11,10 @@ data class Navigability(
     val visible: Int,
     val viewportHeight: Int,
     val stealsFocus: Boolean,
+    /** A cross-origin frame large enough to be the page: a consent wall. */
+    val blockingFrame: Boolean = false,
+    /** Focus is inside a frame, so the D-pad has nowhere left to go. */
+    val focusInFrame: Boolean = false,
 )
 
 /**
@@ -31,6 +35,16 @@ object NavigabilityProbe {
         // A page that moved focus itself on load will keep doing it, and two
         // systems moving focus is worse than either one alone.
         if (page.stealsFocus) return false
+
+        // A frame we cannot see into, covering the page. Focus can reach the
+        // frame and cannot go inside it, so every press after that one does
+        // nothing; the pointer taps into it the way a finger would.
+        if (page.blockingFrame) return false
+
+        // Focus is already inside a frame, so the D-pad is inert right now.
+        // Stated here as well as at the call site: the ladder acts on it
+        // immediately, and this keeps the rule testable without a device.
+        if (page.focusInFrame) return false
 
         // What is on screen, and nothing else. There was a second gate on the
         // page's total count, and removing the phantom elements from the

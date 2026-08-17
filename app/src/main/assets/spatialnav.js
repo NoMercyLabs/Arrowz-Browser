@@ -53,6 +53,9 @@
     .join(',');
 
   var MIN_SIZE = 8;
+
+  /** A third of the screen is a dialog rather than an embed. */
+  var BLOCKING_FRAME_SHARE = 0.33;
   var identity = 0;
 
   /**
@@ -122,6 +125,15 @@
    * entirely is not.
    */
   function isVisible(element, fixed, box) {
+    // A frame is never a stop. We cannot see inside another origin's document,
+    // so focus that lands on one has nowhere to go and every press after it
+    // does nothing. The Guardian is the case: Sourcepoint's consent dialog is a
+    // cross-origin iframe carrying a tabindex, it was collected as an ordinary
+    // candidate, and the walk reached one of twenty-five focusables in two
+    // presses before stopping dead inside it. The pointer taps into a frame the
+    // way a finger does, which is the tool for the job.
+    if (element.tagName && element.tagName.toLowerCase() === 'iframe') return false;
+
     var style = window.getComputedStyle(element);
     if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') return false;
     if (element.disabled) return false;
@@ -640,8 +652,55 @@
       total: snapshot.elements.length,
       visible: visible,
       viewportHeight: snapshot.viewportHeight,
-      stealsFocus: pageMovedFocusItself()
+      stealsFocus: pageMovedFocusItself(),
+      blockingFrame: hasBlockingFrame(),
+      focusInFrame: focusEscapedIntoFrame()
     };
+  }
+
+  /**
+   * Whether focus is inside a frame right now.
+   *
+   * Not the same question as [hasBlockingFrame], and the one that actually
+   * fires: a consent dialog calls focus() on its own iframe after it renders,
+   * which is well after the mode was decided. Once focus is in there the D-pad
+   * is inert, because we cannot see into another origin to find the next stop
+   * and the page underneath is unreachable behind the dialog.
+   */
+  function focusEscapedIntoFrame() {
+    var active = document.activeElement;
+    return !!(active && active.tagName && active.tagName.toLowerCase() === 'iframe');
+  }
+
+  /**
+   * A frame large enough to be the page, which is what a consent wall is.
+   *
+   * The Guardian is the case that found this. Sourcepoint's dialog is a
+   * cross-origin iframe carrying a tabindex, so it was collected as an ordinary
+   * candidate, focus landed on it, and every press after that did nothing: we
+   * cannot see inside another origin's document and there is nothing outside it
+   * to move to. One of twenty-five focusables reached, and the twenty-five were
+   * behind a wall nobody could dismiss.
+   *
+   * The pointer can. A synthesised tap is a real touch event at a coordinate,
+   * and the frame handles it exactly as it would a finger, so a page walled off
+   * this way is a page the cursor has to drive.
+   */
+  function hasBlockingFrame() {
+    var frames = document.querySelectorAll('iframe');
+    var viewportArea = window.innerWidth * window.innerHeight;
+    if (viewportArea <= 0) return false;
+    for (var index = 0; index < frames.length; index++) {
+      var rect = frames[index].getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      var style = window.getComputedStyle(frames[index]);
+      if (style.visibility === 'hidden' || style.display === 'none') continue;
+      // Fixed or absolute, because an article's embedded video is large and is
+      // not a wall. A dialog is taken out of the flow to sit over the page.
+      if (style.position !== 'fixed' && style.position !== 'absolute') continue;
+      if ((rect.width * rect.height) / viewportArea >= BLOCKING_FRAME_SHARE) return true;
+    }
+    return false;
   }
 
   /**

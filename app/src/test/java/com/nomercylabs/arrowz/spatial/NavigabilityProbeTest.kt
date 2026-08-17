@@ -53,4 +53,38 @@ class NavigabilityProbeTest {
     fun aPageThatMovesFocusItselfIsLeftAlone() {
         assertFalse(NavigabilityProbe.prefersFocusMode(page(total = 60, visible = 20, stealsFocus = true)))
     }
+
+    // The Guardian: twenty-five focusables behind Sourcepoint's consent dialog,
+    // which is a cross-origin iframe carrying a tabindex. Focus reached the
+    // frame and stopped, because there is nothing inside it we can see and
+    // nothing outside it to move to. Measured on the 8000: one of twenty-five
+    // reached, in two presses.
+    @Test
+    fun aFrameWallingOffThePageWantsThePointer() {
+        val walled = Navigability(
+            total = 25,
+            visible = 25,
+            viewportHeight = 1080,
+            stealsFocus = false,
+            blockingFrame = true,
+        )
+
+        assertFalse(NavigabilityProbe.prefersFocusMode(walled))
+    }
+
+    // The wall arrives after the mode was decided: Sourcepoint renders, then
+    // calls focus() on its own iframe. A page reporting plenty of focusables is
+    // still unwalkable once focus is in there.
+    @Test
+    fun focusHavingEscapedIntoAFrameWantsThePointer() {
+        val escaped = Navigability(
+            total = 29,
+            visible = 25,
+            viewportHeight = 540,
+            stealsFocus = false,
+            focusInFrame = true,
+        )
+
+        assertFalse(NavigabilityProbe.prefersFocusMode(escaped))
+    }
 }

@@ -92,6 +92,8 @@ object PageSnapshotParser {
             visible = root.optInt("visible"),
             viewportHeight = root.optInt("viewportHeight"),
             stealsFocus = root.optBoolean("stealsFocus"),
+            blockingFrame = root.optBoolean("blockingFrame"),
+            focusInFrame = root.optBoolean("focusInFrame"),
         )
     }
 

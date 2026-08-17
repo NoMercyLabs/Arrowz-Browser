@@ -1709,6 +1709,17 @@ class MainActivity : ComponentActivity() {
                 // A reader can arrive during the three seconds this ladder spans.
                 if (!A11yMode.mayChooseMode(screenReader.isActive)) return@probe
                 when {
+                    // The one downgrade this ladder makes, and it is not the
+                    // "a late banner appeared" case that rule exists to refuse.
+                    // Focus is inside a frame: the D-pad is inert, because there
+                    // is nothing visible to us inside another origin and the
+                    // page beneath is behind the dialog. Measured on the 8000,
+                    // theguardian.com reached one of twenty-five focusables in
+                    // two presses, every load. The pointer taps into a frame the
+                    // way a finger does.
+                    page != null && page.focusInFrame ->
+                        setInputMode(InputMode.Cursor, remember = false)
+
                     page != null && NavigabilityProbe.prefersFocusMode(page) ->
                         setInputMode(InputMode.Focus, remember = false)
 
