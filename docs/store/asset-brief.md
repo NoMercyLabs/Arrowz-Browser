@@ -2,16 +2,17 @@
 
 ## Where the set stands
 
-Five of the six frames came back at exactly the declared size and are in the
-repository. One is still open, and it is the square one.
+All six slots are filled. Four came back from the designer at exactly the
+declared size; the square pair is built here from the wide lockup, and is a
+placeholder in the sense that it uses the mark rather than being drawn as one.
 
 | Asset | Status |
 |---|---|
 | `launcher-banner-640x360` | In, as `app/src/main/res/drawable-xhdpi/banner.png` |
 | `play-tv-banner-1280x720` | In, as `docs/store/tv-banner-1280x720.png` |
 | `play-feature-graphic-1024x500` | In, as `docs/store/feature-graphic-1024x500.png` |
-| `play-icon-512` | In as a placeholder, and needs redrawing with the one below |
-| `adaptive-icon-foreground-432` | Not usable yet — see below |
+| `play-icon-512` | Built by `tools/square-mark.py` from the wide lockup |
+| `adaptive-icon-foreground-432` | Built by `tools/square-mark.py`, transparent, inside the safe circle |
 | `screenshot-1920x1080` | Slot filled by three real captures; the delivered art is kept as `key-art-1920x1080.png` |
 
 The wide artwork is right. The accent samples as `#FF0055` exactly, which is the
@@ -23,6 +24,14 @@ running for that slot, and those already exist in `docs/store/`. The key art is
 worth having anyway.
 
 ### The square icon, which is one problem and not two
+
+**Now built rather than waiting.** `tools/square-mark.py` takes the one petal
+the wide lockup leaves uncut and rotates it four times about the centre, which
+is how the artwork already arranges them, so nothing is invented. Measured on
+the result: zero visible pixels fall outside the 66% safe circle, the furthest
+reaching 142 where the limit is 143, and the foreground carries real
+transparency. A drawn-square original would still be better than a reconstructed
+one, and everything below says why the delivered pair could not be used.
 
 `play-icon-512` and `adaptive-icon-foreground-432` are the same image at two
 sizes — comparing them pixel for pixel gives a mean difference of 0.8 out of
