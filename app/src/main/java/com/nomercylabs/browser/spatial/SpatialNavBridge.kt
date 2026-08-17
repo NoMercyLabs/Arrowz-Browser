@@ -185,6 +185,10 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
     /** Entering a page with nothing focused: the first element in document
      *  order, which is where a reader would start. */
     fun focusFirst() {
+        // Whatever the page focused for itself goes first. A search page that
+        // focuses its own box also opens the suggestion list hanging off it,
+        // and that list covers the results with something no press dismisses.
+        evaluate("window.__nmSpatial && window.__nmSpatial.releasePageFocus()")
         readSnapshot { snapshot ->
             val first: PageFocusable = snapshot?.elements
                 ?.minByOrNull { element -> element.focusable.documentOrder }

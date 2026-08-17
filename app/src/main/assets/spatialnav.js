@@ -536,9 +536,34 @@
     });
   }
 
+  /**
+   * Lets go of a field the page focused by itself.
+   *
+   * A search page that focuses its own box on load also opens the suggestion
+   * list attached to it, and on a television that list covers the results
+   * underneath with something nobody asked for and nothing dismisses. The page
+   * is entitled to focus its field; it is not entitled to keep it while we are
+   * the ones navigating.
+   *
+   * Only ever releases focus the page took. Anything we put focus on is left
+   * exactly where it is.
+   */
+  function releasePageFocus() {
+    var active = document.activeElement;
+    if (!active || active === document.body || active === document.documentElement) return false;
+    if (focusedByUs && active.__nmSpatialId === focusedByUs) return false;
+
+    var tag = active.tagName ? active.tagName.toLowerCase() : '';
+    if (tag !== 'input' && tag !== 'textarea' && !active.isContentEditable) return false;
+
+    try { active.blur(); } catch (error) { return false; }
+    return true;
+  }
+
   window.__nmSpatial = {
     collect: function () { return JSON.stringify(collect()); },
     focusedRect: focusedRect,
+    releasePageFocus: releasePageFocus,
     hasModal: function () { return openModal() ? 'true' : 'false'; },
     dismissModal: dismissModal,
     probe: function () { return JSON.stringify(probe()); },
