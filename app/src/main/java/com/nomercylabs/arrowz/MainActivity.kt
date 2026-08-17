@@ -2062,6 +2062,8 @@ private fun BrowserScreen(
 
             ChromeSurface.Menu -> MenuOverlay(
                 canKeepPage = !showHome && page.url.isNotEmpty(),
+                isFavourite = isFavourite,
+                onToggleFavourite = onToggleFavourite,
                 isDesktopSite = isDesktopSite,
                 themeMode = themeMode,
                 section = menuSection,

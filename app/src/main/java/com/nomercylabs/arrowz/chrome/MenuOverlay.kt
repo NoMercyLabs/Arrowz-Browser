@@ -5,12 +5,6 @@
 
 package com.nomercylabs.arrowz.chrome
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -46,7 +41,7 @@ enum class MenuSection(val titleRes: Int) {
     Site(R.string.menu_site),
     Library(R.string.menu_library),
     Settings(R.string.menu_settings),
-    About(R.string.menu_about),
+    About(R.string.menu_about_section),
     SearchEngine(R.string.menu_search_engine),
     Permissions(R.string.menu_permissions),
     ClearData(R.string.menu_clear_data),
@@ -74,6 +69,8 @@ enum class MenuSection(val titleRes: Int) {
 @Composable
 fun MenuOverlay(
     canKeepPage: Boolean,
+    isFavourite: Boolean,
+    onToggleFavourite: () -> Unit,
     isDesktopSite: Boolean,
     themeMode: ThemeMode,
     section: MenuSection,
@@ -226,6 +223,23 @@ fun MenuOverlay(
                 }
 
                 MenuSection.Site -> {
+                    // Back, after being cut as an address-bar duplicate. The bar
+                    // carries a star and that was the argument, but the bar is
+                    // revealed by pressing UP with the pointer against the top
+                    // edge of a page that is already at its top - and
+                    // app.nomercy.tv never satisfies it, so on that page the
+                    // star does not exist and keeping the page became
+                    // impossible. A second door is only redundant while the
+                    // first one opens.
+                    ListRow(
+                        title = stringResource(
+                            if (isFavourite) R.string.nav_favourite_remove else R.string.nav_favourite_add,
+                        ),
+                        subtitle = "",
+                        selected = isFavourite,
+                        onClick = onToggleFavourite,
+                        requestInitialFocus = true,
+                    )
                     ListRow(
                         title = stringResource(R.string.menu_privacy),
                         subtitle = if (isFilteringOn) {
@@ -243,7 +257,6 @@ fun MenuOverlay(
                         },
                         selected = isFilteringOn,
                         onClick = onToggleFiltering,
-                        requestInitialFocus = true,
                     )
                     ListRow(
                         title = stringResource(R.string.menu_stay_signed_in),
@@ -471,22 +484,19 @@ private fun AboutPanel(versionName: String) {
     val palette: Palette = LocalPalette.current
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = Tokens.SpaceXl),
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Tokens.SpaceMd),
     ) {
-        // The lockup the launcher tile carries, so the app names itself the way
-        // it does everywhere else rather than as a line of body text.
-        Image(
-            painter = painterResource(R.drawable.banner),
-            contentDescription = null,
-            modifier = Modifier
-                .width(MARK_WIDTH)
-                .clip(RoundedCornerShape(Tokens.Radius)),
+        BasicText(
+            text = stringResource(R.string.app_name),
+            style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextDisplay),
         )
-
         BasicText(
             text = stringResource(R.string.menu_about_version, versionName),
-            style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextBody),
+            style = TextStyle(color = palette.accent, fontSize = Tokens.TextBody),
         )
         BasicText(
             text = stringResource(R.string.menu_about_what),
@@ -502,9 +512,5 @@ private fun AboutPanel(versionName: String) {
         )
     }
 }
-
-/** Wide enough to read the wordmark from a sofa, narrow enough that it is a
- *  mark on a page rather than the page. */
-private val MARK_WIDTH = 420.dp
 
 private const val SCRIM_ALPHA: Float = 0.97f
