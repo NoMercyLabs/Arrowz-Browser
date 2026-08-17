@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">NoMercy Browser</string>
+    <!-- The product name, which is the same in every language. Marked
+         untranslatable rather than copied into each locale, or lint reads its
+         absence as a gap and every new locale starts with a false error. -->
+    <string name="app_name" translatable="false">NoMercy Browser</string>
     <string name="nav_back">Go back</string>
     <string name="nav_reload">Reload page</string>
     <string name="nav_home">Go to home page</string>
