@@ -31,8 +31,28 @@ Three harness designs were written and thrown away, and the reason matters more 
 
 And one that was not the harness's fault: a sweep once reported six dead presses in a row because the browser had lost the foreground and every press had gone into somebody's media app on the television in the living room. The driver now refuses to send a key unless the browser is the thing in front, which is a courtesy as much as a correctness measure.
 
-## Open
+## The scroll that outran its own retry
 
-A column sweep stops at the first `<select>` on the test page. Pressing DOWN from that same select after placing focus on it directly does move — `f-select → f-range → f-file` — so the control is not a trap and the search is not refusing it; something about arriving there by navigation is. Not diagnosed, and not to be confused with the keyboard trap above, which is fixed and verified.
+A column sweep stopped at the first `<select>`. The press was not refused and
+the control was not a trap: the page scrolled a full screenful and focus stayed
+behind, ending up above the viewport with nothing below it that the next press
+could find either.
 
-Coverage on the test page reads 12 of 25 for the raster sweep, and that number is a floor rather than a verdict while the above is open.
+`scrollBy` is applied on the view's next frame. The retry was reading geometry
+in the same breath as asking for the scroll, so it got the position from before
+it, asked for the same scroll again, and — being the retry — gave up. Waiting two
+frames before the second look is the whole fix.
+
+Coverage on the test page went **12 of 25 to 22 of 25**, and the column walk now
+runs the full document:
+
+```
+f-text f-tel f-search f-select f-range f-file f-textarea f-editable
+f-hiddencheck f-link
+```
+
+The three the raster does not list are reachable and were checked by hand, since
+the sweep only ever steps right from a column stop and they sit left of one:
+`f-check` is one LEFT from `f-radio-1`, `f-button` is two LEFT from `f-submit`,
+and `f-fakebutton` is one UP from there. Every control on the page can be
+reached with the four arrows.

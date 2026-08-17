@@ -137,7 +137,22 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
                     if (isRetry) {
                         onLeavePage()
                     } else {
-                        move(direction, onScroll, onLeavePage, isRetry = true)
+                        /**
+                         * After the scroll has actually happened, not in the same
+                         * breath as asking for it.
+                         *
+                         * `scrollBy` is applied on the view's own next frame, so a
+                         * retry that reads geometry immediately gets the position
+                         * from before the scroll, asks for the same scroll again,
+                         * and — being the retry — gives up. Measured on the 8000:
+                         * DOWN from a control near the fold scrolled the page a
+                         * screenful and left focus behind, above the viewport,
+                         * where the next press had nothing below it either.
+                         */
+                        webView()?.postDelayed(
+                            { move(direction, onScroll, onLeavePage, isRetry = true) },
+                            SCROLL_SETTLE_MILLIS,
+                        ) ?: move(direction, onScroll, onLeavePage, isRetry = true)
                     }
                 }
                 SpatialResult.LeavePage -> onLeavePage()
@@ -245,6 +260,12 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         view.evaluateJavascript(script) { value ->
             onResult(unwrap(value))
         }
+    }
+
+    private companion object {
+        /** Two frames at 60Hz, which is what a `scrollBy` needs before the
+         *  geometry it produced can be read back. */
+        const val SCROLL_SETTLE_MILLIS: Long = 32
     }
 
     private fun unwrap(value: String?): String? {

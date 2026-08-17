@@ -61,7 +61,7 @@ node tools/spatial-drive.mjs <serial> <url>
 Presses real remote keys at a real device and reports where focus went, against
 a debug page carrying every input type a site can use. It is the ruler that
 catches what the geometry fixtures cannot, and the reasoning is in
-[docs/design/spatial-navigation-on-hardware.md](docs/design/spatial-navigation-on-hardware.md).
+[docs/design/spatial-navigation-on-hardware.md](docs/design/spatial-navigation-on-hardware.md). On a page carrying one of every input type it reaches 22 of 25 controls by sweep, and the other three by hand.
 
 ## What it cannot do
 
