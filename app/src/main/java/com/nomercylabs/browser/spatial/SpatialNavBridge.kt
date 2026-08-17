@@ -61,9 +61,14 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
                 .filter { element -> element.isFixed == fixedSource }
                 .map { element -> element.focusable }
 
+            // Horizontal too. A page that scrolls sideways is rare, but
+            // treating LEFT and RIGHT as unscrollable meant a winner past the
+            // edge was focused where nobody could see it.
             val canScroll: Boolean = when (direction) {
                 RemoteKey.Down -> snapshot.scrollY + snapshot.viewport.height < snapshot.scrollHeight
                 RemoteKey.Up -> snapshot.scrollY > 0
+                RemoteKey.Right -> snapshot.scrollX + snapshot.viewport.width < snapshot.scrollWidth
+                RemoteKey.Left -> snapshot.scrollX > 0
                 else -> false
             }
 

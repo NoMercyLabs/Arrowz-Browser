@@ -13,6 +13,8 @@ data class PageSnapshot(
     val viewport: Rect,
     val scrollY: Int,
     val scrollHeight: Int,
+    val scrollX: Int = 0,
+    val scrollWidth: Int = 0,
     val focusedId: String,
 )
 
@@ -69,6 +71,8 @@ object PageSnapshotParser {
             viewport = Rect(0, 0, width, height),
             scrollY = root.optInt("scrollY"),
             scrollHeight = root.optInt("scrollHeight"),
+            scrollX = root.optInt("scrollX"),
+            scrollWidth = root.optInt("scrollWidth"),
             focusedId = root.optString("focused"),
         )
     }

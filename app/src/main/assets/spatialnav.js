@@ -134,6 +134,8 @@
       viewportHeight: window.innerHeight,
       scrollY: Math.round(window.scrollY),
       scrollHeight: Math.round(document.documentElement.scrollHeight),
+      scrollX: Math.round(window.scrollX),
+      scrollWidth: Math.round(document.documentElement.scrollWidth),
       focused: document.activeElement && document.activeElement.__nmSpatialId
         ? document.activeElement.__nmSpatialId
         : ''
@@ -160,12 +162,25 @@
 
     element.classList.add(RING_CLASS);
     element.setAttribute(RING_ATTRIBUTE, '');
-    // preventScroll: the Kotlin side has already decided whether a scroll is
-    // wanted, and the browser's own scroll-into-view fights that decision.
+    // preventScroll, because the Kotlin side has already decided whether a
+    // screenful of scrolling is wanted and the browser's own scroll-into-view
+    // would fight that decision.
     try {
       element.focus({ preventScroll: true });
     } catch (error) {
       element.focus();
+    }
+
+    // Except when the element is not fully on screen. Focus was landing on
+    // things sitting past the right edge — the menu button on DuckDuckGo's
+    // header — so the ring was drawn somewhere nobody could see and the press
+    // read as doing nothing at all. `nearest` moves the least that makes it
+    // visible, which is what a browser does for its own focus.
+    var box = element.getBoundingClientRect();
+    var offscreen = box.left < 0 || box.top < 0 ||
+      box.right > window.innerWidth || box.bottom > window.innerHeight;
+    if (offscreen) {
+      element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
     return true;
   }
