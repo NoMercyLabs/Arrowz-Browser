@@ -55,15 +55,25 @@ foreach ($target in $Connect) {
     & adb connect $target *> $null
 }
 
+# uses-feature leanback is Play Store distribution metadata; the platform
+# installer never consults it, so a bare adb install puts a TV app on a phone
+# quite happily. Nothing downstream will stop it, so the filter lives here: with
+# no -Device, only leanback devices are targeted. An explicit -Device is obeyed
+# as given, because asking for a specific serial is a deliberate act.
 if (-not $Device -or $Device.Count -eq 0) {
     $Device = & adb devices |
         Select-Object -Skip 1 |
         Where-Object { $_ -match '^\S+\s+device$' } |
-        ForEach-Object { ($_ -split '\s+')[0] }
+        ForEach-Object { ($_ -split '\s+')[0] } |
+        Where-Object {
+            $isTv = (& adb -s $_ shell pm has-feature android.software.leanback 2>$null) -replace '\s',''
+            if ($isTv -ne 'true') { Write-Host "[$_] skipped, not a leanback device" }
+            $isTv -eq 'true'
+        }
 }
 
 if (-not $Device -or $Device.Count -eq 0) {
-    Write-Error 'No devices. Connect one, or pass -Connect host:port.'
+    Write-Error 'No leanback devices. Connect a television, or pass -Device <serial>.'
 }
 
 # The debug build carries an applicationIdSuffix, so installing a debug build

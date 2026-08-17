@@ -76,14 +76,25 @@ for target in "${CONNECT[@]:-}"; do
     adb connect "$target" >/dev/null 2>&1 || true
 done
 
+# uses-feature leanback is Play Store distribution metadata; the platform
+# installer never consults it, so a bare `adb install` puts a TV app on a phone
+# quite happily. Nothing downstream will stop it, so the filter lives here: with
+# no --device, only leanback devices are targeted. An explicit --device is
+# obeyed as given, because asking for a specific serial is a deliberate act.
 if [[ ${#DEVICES[@]} -eq 0 ]]; then
     while read -r serial _; do
-        [[ -n "$serial" ]] && DEVICES+=("$serial")
+        [[ -z "$serial" ]] && continue
+        # </dev/null or adb consumes the loop's stdin and eats the device list.
+        if [[ "$(adb -s "$serial" shell pm has-feature android.software.leanback </dev/null 2>/dev/null | tr -d '\r')" == "true" ]]; then
+            DEVICES+=("$serial")
+        else
+            echo "[$serial] skipped, not a leanback device"
+        fi
     done < <(adb devices | awk 'NR>1 && $2=="device" {print $1}')
 fi
 
 if [[ ${#DEVICES[@]} -eq 0 ]]; then
-    echo "No devices. Connect one, or pass --connect host:port." >&2
+    echo "No leanback devices. Connect a television, or pass --device <serial>." >&2
     exit 1
 fi
 
