@@ -26,7 +26,7 @@ A private browser for Android TV. No trackers, no accounts, six remote keys.
 
 NoMercy Browser is a web browser built for a television and a remote, rather than a phone browser with the buttons moved around.
 
-**It works with the remote you have.** Everything is reachable with the four arrows, OK and BACK. Nothing needs a colour button, a mouse, or a phone app. Pages you can navigate by focus are walked link by link with a focus ring you can see from the sofa; pages you cannot are given a pointer that moves and clicks. It chooses for you, and a long press on OK overrules it.
+**It works with the remote you have.** Everything is reachable with the four arrows, OK and BACK. Nothing needs a color button, a mouse, or a phone app. Pages you can navigate by focus are walked link by link with a focus ring you can see from the sofa; pages you cannot are given a pointer that moves and clicks. It chooses for you, and a long press on OK overrules it.
 
 **Forms are native.** A text field on a page opens a real television keyboard with the right layout for the field, and a dropdown becomes a list you can actually operate with a D-pad, instead of one that ignores you.
 

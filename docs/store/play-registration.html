@@ -1,0 +1,421 @@
+<title>NoMercy Browser on Play</title>
+<style>
+  :root {
+    --paper: #FBFAFC;
+    --surface: #F3F1F7;
+    --sunken: #EDEAF3;
+    --ink: #1B1720;
+    --muted: #6C6478;
+    --accent: #5B3BD4;
+    --ready: #2C7355;
+    --needs: #A8492F;
+    --line: #E2DEEA;
+    --serif: ui-serif, "Iowan Old Style", Georgia, "Palatino Linotype", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141119;
+      --surface: #1D1926;
+      --sunken: #241F30;
+      --ink: #EDEAF2;
+      --muted: #9990A8;
+      --accent: #A78BFA;
+      --ready: #6FCF9B;
+      --needs: #E8907A;
+      --line: #2C2637;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #141119;
+    --surface: #1D1926;
+    --sunken: #241F30;
+    --ink: #EDEAF2;
+    --muted: #9990A8;
+    --accent: #A78BFA;
+    --ready: #6FCF9B;
+    --needs: #E8907A;
+    --line: #2C2637;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 3rem 1.25rem 6rem;
+  }
+
+  .page {
+    max-width: 47rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2.75rem;
+  }
+
+  header { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 5vw, 2.9rem);
+    line-height: 1.1;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst { color: var(--muted); margin: 0; max-width: 40rem; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 1.45rem;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 0;
+  }
+
+  section {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--surface);
+    padding: 1.5rem 1.5rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.85rem;
+  }
+
+  .chip {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .chip.ready { color: var(--ready); }
+  .chip.needs { color: var(--needs); }
+  .chip.later { color: var(--muted); }
+
+  dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(9rem, 14rem) 1fr;
+    gap: 0.5rem 1.25rem;
+    align-items: baseline;
+  }
+  dt {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  dd { margin: 0; }
+
+  @media (max-width: 34rem) {
+    dl { grid-template-columns: 1fr; gap: 0.15rem; }
+    dd { margin-bottom: 0.6rem; }
+  }
+
+  code, .val {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0.08em 0.36em;
+    word-break: break-word;
+  }
+
+  .prose { margin: 0; }
+  .prose + .prose { margin-top: 0.75rem; }
+
+  .note {
+    color: var(--muted);
+    font-size: 0.9rem;
+    border-left: 2px solid var(--accent);
+    padding-left: 0.9rem;
+    margin: 0;
+  }
+
+  .count {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .field .body { margin: 0; }
+  .field .body p { margin: 0 0 0.65rem; }
+  .field .body p:last-child { margin-bottom: 0; }
+  .field .body strong { font-weight: 650; }
+
+  .qa { display: flex; flex-direction: column; gap: 0.7rem; }
+  .qa .q { margin: 0; }
+  .qa .a {
+    margin: 0.15rem 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  .qa .a b { color: var(--ink); font-weight: 650; }
+
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.4rem; }
+
+  .todo { border-color: var(--needs); }
+  .todo ol {
+    margin: 0;
+    padding-left: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .todo ol li::marker { color: var(--needs); font-weight: 700; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.45rem 0.9rem 0.45rem 0; border-bottom: 1px solid var(--line); }
+  th { font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85rem; }
+
+  footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 1.25rem; }
+  a { color: var(--accent); }
+  a:focus-visible, :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="eyebrow">NoMercy Labs &middot; Play Console</div>
+    <h1>Registering NoMercy Browser</h1>
+    <p class="standfirst">Every field the console asks for, with the answer already decided and checked against the code rather than remembered. Values in <code>this face</code> are meant to be pasted exactly.</p>
+  </header>
+
+  <section class="todo">
+    <div class="head">
+      <h2>Only you can do these</h2>
+      <span class="chip needs">Needs you</span>
+    </div>
+    <ol>
+      <li><strong>Create the app</strong> in the console under the NoMercy Labs developer account, with the app name and package below. Nothing else can start until the package exists there.</li>
+      <li><strong>Publish the privacy policy at a public URL.</strong> It is a hard requirement and the console will not accept the listing without it. The text is written and final; it needs hosting.</li>
+      <li><strong>Add <code>PLAY_SERVICE_ACCOUNT_JSON</code></strong> to the repository secrets. The release workflow already reads it and skips publishing silently when it is absent, so the tag looks successful and nothing reaches the console.</li>
+      <li><strong>Complete the EU DSA trader declaration</strong> on the developer account. It blocks distribution in the EU, which is where you are.</li>
+      <li><strong>Grant production-track rights</strong> on the account if you want promotion beyond internal testing. Internal works without it.</li>
+    </ol>
+    <p class="note">Once the service account secret is in place, re-running the <code>v0.1.0</code> release workflow publishes the existing build to internal testing. Nothing needs rebuilding.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>App identity</h2>
+      <span class="chip ready">Answers ready</span>
+    </div>
+    <dl>
+      <dt>App name</dt>
+      <dd><span class="val">NoMercy Browser</span> <span class="count">15 / 30</span></dd>
+      <dt>Package name</dt>
+      <dd><span class="val">com.nomercylabs.browser</span></dd>
+      <dt>Developer account</dt>
+      <dd>NoMercy Labs</dd>
+      <dt>Default language</dt>
+      <dd>English (United States). Dutch ships in the app; the listing can follow later.</dd>
+      <dt>App or game</dt>
+      <dd>App</dd>
+      <dt>Free or paid</dt>
+      <dd>Free, with no in-app purchases and no ads</dd>
+      <dt>Form factor</dt>
+      <dd>Android TV only. <code>android.software.leanback</code> is required and <code>android.hardware.touchscreen</code> is explicitly not, which is what keeps Play from filtering the app off every television.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>The build you are uploading</h2>
+      <span class="chip ready">Answers ready</span>
+    </div>
+    <dl>
+      <dt>Version name</dt>
+      <dd><span class="val">0.1.0</span>, tagged <span class="val">v0.1.0</span></dd>
+      <dt>Version code</dt>
+      <dd><span class="val">1</span></dd>
+      <dt>Artifact</dt>
+      <dd>AAB, with Play App Signing. The upload key lives in CI secrets and is never the release key.</dd>
+      <dt>SDK levels</dt>
+      <dd>min <span class="val">28</span>, target <span class="val">36</span>, compile <span class="val">36</span></dd>
+      <dt>Architectures</dt>
+      <dd>One artifact for all four. There are no ABI filters and no splits, so a single bundle covers <code>armeabi-v7a</code>, <code>arm64-v8a</code>, <code>x86</code> and <code>x86_64</code>.</dd>
+      <dt>Permissions</dt>
+      <dd>Two, both ordinary: <code>INTERNET</code> and <code>ACCESS_NETWORK_STATE</code>. No sensitive or restricted permission is declared, so no permissions declaration form is triggered.</dd>
+      <dt>Track</dt>
+      <dd>Internal testing, published by the release workflow on a tag. Promotion to production stays a decision made in the console.</dd>
+    </dl>
+    <p class="note">A browser reaching every Android TV device is not something a tag push should be able to do by itself, which is why promotion is deliberately manual rather than automated.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Store listing text</h2>
+      <span class="chip ready">Answers ready</span>
+    </div>
+
+    <div class="field">
+      <h3>Short description <span class="count">76 / 80</span></h3>
+      <p class="body">A private browser for Android TV. No trackers, no accounts, six remote keys.</p>
+    </div>
+
+    <div class="field">
+      <h3>Full description <span class="count">1,502 / 4,000</span></h3>
+      <div class="body">
+        <p>NoMercy Browser is a web browser built for a television and a remote, rather than a phone browser with the buttons moved around.</p>
+        <p><strong>It works with the remote you have.</strong> Everything is reachable with the four arrows, OK and BACK. Nothing needs a color button, a mouse, or a phone app. Pages you can navigate by focus are walked link by link with a focus ring you can see from the sofa; pages you cannot are given a pointer that moves and clicks. It chooses for you, and a long press on OK overrules it.</p>
+        <p><strong>Forms are native.</strong> A text field on a page opens a real television keyboard with the right layout for the field, and a dropdown becomes a list you can actually operate with a D-pad, instead of one that ignores you.</p>
+        <p><strong>Video behaves like a browser, not a webview.</strong> Fullscreen, now playing, media keys, audio focus, background audio and picture-in-picture all work.</p>
+        <p><strong>Trackers are blocked by default,</strong> using the same public filter lists desktop blockers use, downloaded from their publishers directly. The app never contacts a server of ours, because there isn't one.</p>
+        <p><strong>Nothing is collected.</strong> No analytics, no crash reporting, no advertising identifiers, no account. Google Safe Browsing is turned off, which is the component that reports browsing to a third party, and that trade-off is stated plainly in the privacy policy rather than buried.</p>
+        <p>Netflix, Prime Video and Disney+ refuse browser playback by policy, and no browser on any platform gets around that. Other paid video that uses standard web DRM plays.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Graphics</h2>
+      <span class="chip ready">Files exist</span>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Asset</th><th>Size</th><th>File in the repo</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>TV banner</td><td class="num">1280&times;720</td><td><code>docs/store/tv-banner-1280x720.png</code></td></tr>
+          <tr><td>Hi-res icon</td><td class="num">512&times;512</td><td><code>docs/store/icon-512.png</code></td></tr>
+          <tr><td>Feature graphic</td><td class="num">1024&times;500</td><td><code>docs/store/feature-graphic-1024x500.png</code></td></tr>
+          <tr><td>Screenshot, home</td><td class="num">1920&times;1080</td><td><code>docs/store/screenshot-1-home.png</code></td></tr>
+          <tr><td>Screenshot, a page</td><td class="num">1920&times;1080</td><td><code>docs/store/screenshot-2-page.png</code></td></tr>
+          <tr><td>Screenshot, the menu</td><td class="num">1920&times;1080</td><td><code>docs/store/screenshot-3-menu.png</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Three screenshots is the minimum for a television listing and three is what exists. They are captured from a real Nokia Streaming Box on an installation with no browsing history behind it, not mocked up.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Data safety</h2>
+      <span class="chip ready">Answers ready</span>
+    </div>
+    <div class="qa">
+      <p class="q"><strong>Does your app collect or share any of the required user data types?</strong></p>
+      <p class="a"><b>No.</b> There is no code path that could. No analytics dependency, no crash reporter, no advertising library, no account system, and CI fails the build if one is added.</p>
+
+      <p class="q"><strong>Is all user data encrypted in transit?</strong></p>
+      <p class="a"><b>Not applicable</b>, because no user data is transmitted. Browsing itself uses HTTPS wherever a site offers it, an HTTPS page cannot pull HTTP subresources, and certificate errors are cancelled with no way to click through.</p>
+
+      <p class="q"><strong>Do you provide a way for users to request data deletion?</strong></p>
+      <p class="a">Everything the browser stores is <b>on the device</b>. Clearing app data removes it, and so does uninstalling. There is nothing held anywhere else to delete.</p>
+    </div>
+    <p class="note">The one request the app makes on its own behalf is a weekly filter-list download from <code>easylist.to</code> and <code>raw.githubusercontent.com</code>. It goes to those publishers directly and carries nothing about the user beyond what any download requires. Disclose it; it does not make the collection answer yes.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Content rating</h2>
+      <span class="chip ready">Answers ready</span>
+    </div>
+    <div class="qa">
+      <p class="q"><strong>Does the app allow access to uncurated web content?</strong></p>
+      <p class="a"><b>Yes.</b> It is a web browser and it does not filter content.</p>
+
+      <p class="q"><strong>Does the app contain violence, sexual content or profanity of its own?</strong></p>
+      <p class="a"><b>No.</b> The app's own content is a browser interface.</p>
+
+      <p class="q"><strong>Does the app share user location?</strong></p>
+      <p class="a"><b>No</b>, and it asks before a website may.</p>
+
+      <p class="q"><strong>Does it allow users to interact or exchange content?</strong></p>
+      <p class="a"><b>No</b>, and it has no accounts.</p>
+    </div>
+    <p class="note">Expect a high age rating. That is the correct outcome for a browser and is not something to work around by answering more narrowly than the truth.</p>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Policy and audience</h2>
+      <span class="chip ready">Answers ready</span>
+    </div>
+    <dl>
+      <dt>Target audience</dt>
+      <dd>18 and over, general audience, not designed for children</dd>
+      <dt>Ads</dt>
+      <dd>Contains no ads</dd>
+      <dt>In-app purchases</dt>
+      <dd>None</dd>
+      <dt>Government app</dt>
+      <dd>No</dd>
+      <dt>Financial features</dt>
+      <dd>None</dd>
+      <dt>Privacy policy URL</dt>
+      <dd>Proposed <span class="val">nomercy.tv/labs/browser/privacy</span>, from <code>docs/legal/privacy-policy.md</code></dd>
+    </dl>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>What a reviewer may ask about</h2>
+      <span class="chip later">Have the answer ready</span>
+    </div>
+    <ul>
+      <li><strong>Safe Browsing is off.</strong> <code>EnableSafeBrowsing</code> is declared <code>false</code> in the manifest deliberately: it is the WebView component that reports browsing activity to a third party, and the app's whole claim is that browsing does not leave the device. It is disclosed in the privacy policy rather than hidden.</li>
+      <li><strong>Cleartext HTTP is allowed.</strong> A browser that cannot open <code>http://</code> cannot reach a router admin page, a NAS, a printer or the older web. The security-relevant half is kept: an HTTPS page still cannot pull HTTP subresources, and certificate errors are never overridable.</li>
+      <li><strong>The high content rating is intentional</strong> and follows from declaring uncurated web access truthfully.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Sources in the repository: <code>docs/store-listing.md</code>, <code>docs/release.md</code>, <code>docs/legal/privacy-policy.md</code>, <code>app/build.gradle.kts</code>, <code>app/src/main/AndroidManifest.xml</code> and <code>.github/workflows/release.yml</code>. Character counts are measured, not estimated.
+  </footer>
+
+</div>
