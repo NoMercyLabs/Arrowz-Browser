@@ -57,6 +57,13 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         direction: RemoteKey,
         onScroll: (dx: Int, dy: Int) -> Unit,
         onLeavePage: () -> Unit,
+    ) = move(direction, onScroll, onLeavePage, isRetry = false)
+
+    private fun move(
+        direction: RemoteKey,
+        onScroll: (dx: Int, dy: Int) -> Unit,
+        onLeavePage: () -> Unit,
+        isRetry: Boolean,
     ) {
         readSnapshot { snapshot ->
             hasModal = snapshot?.hasModal == true
@@ -110,7 +117,29 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
                         section = winner.section,
                     )
                 }
-                is SpatialResult.ScrollThenRetry -> onScroll(result.dx, result.dy)
+                /**
+                 * The name promised a retry and the code never made one.
+                 *
+                 * Measured on the 8010: focus sat on DuckDuckGo's search field
+                 * and three presses in a row moved nothing at all — the search
+                 * asked for a scroll every time, the scroll changed nothing,
+                 * and no second look was ever taken. From the outside that is a
+                 * dead remote, which is the one failure this whole input model
+                 * exists to prevent.
+                 *
+                 * So it scrolls and looks again, once. If that second look also
+                 * finds nothing reachable, the page has nothing left in this
+                 * direction whatever it claims about its own scroll extent, and
+                 * the chrome takes the key rather than the press vanishing.
+                 */
+                is SpatialResult.ScrollThenRetry -> {
+                    onScroll(result.dx, result.dy)
+                    if (isRetry) {
+                        onLeavePage()
+                    } else {
+                        move(direction, onScroll, onLeavePage, isRetry = true)
+                    }
+                }
                 SpatialResult.LeavePage -> onLeavePage()
             }
         }

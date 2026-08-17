@@ -359,11 +359,64 @@
     return true;
   }
 
+  /**
+   * Presses the focused control the way a finger does.
+   *
+   * `element.click()` alone is not a press. It fires one click event and
+   * nothing else, and a control whose handler sits on `pointerdown` or
+   * `mousedown` — which is most menu buttons, because it feels faster — never
+   * hears it. Measured on DuckDuckGo's menu button on the 8010: focus was on
+   * it, OK was pressed, and the drawer did not open.
+   *
+   * So the whole sequence is sent, in the order a pointer produces it, and
+   * exactly one click among them: a toggle that acts on both `mousedown` and
+   * `click` would otherwise open and immediately close again.
+   */
   function activate() {
-    var element = document.querySelector('.' + RING_CLASS);
+    var element = focusedByUs ? find(focusedByUs) : document.querySelector('.' + RING_CLASS);
     if (!element) return false;
-    element.click();
+
+    var box = element.getBoundingClientRect();
+    var options = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: Math.round(box.left + box.width / 2),
+      clientY: Math.round(box.top + box.height / 2),
+      button: 0,
+      buttons: 1
+    };
+
+    ['pointerover', 'pointerenter', 'pointerdown', 'mousedown'].forEach(function (type) {
+      dispatchPress(element, type, options);
+    });
+
+    try { element.focus({ preventScroll: true }); } catch (error) { /* not focusable */ }
+
+    ['mouseup', 'pointerup', 'click'].forEach(function (type) {
+      dispatchPress(element, type, type === 'click' ? options : options);
+    });
     return true;
+  }
+
+  /** Pointer events where the engine has them, mouse events otherwise. An
+   *  unsupported constructor throws and would take the whole press with it. */
+  function dispatchPress(element, type, options) {
+    var event;
+    try {
+      if (type.indexOf('pointer') === 0) {
+        event = new PointerEvent(type, options);
+      } else {
+        event = new MouseEvent(type, options);
+      }
+    } catch (error) {
+      try {
+        event = new MouseEvent(type, options);
+      } catch (fallbackError) {
+        return;
+      }
+    }
+    element.dispatchEvent(event);
   }
 
   /**
