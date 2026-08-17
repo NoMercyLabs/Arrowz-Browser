@@ -2,6 +2,7 @@
      viewBox="0 0 432 432">
   <title>adaptive-icon-foreground-432</title>
   <desc>Adaptive launcher icon foreground. The launcher masks this to a shape of its choosing and animates it, so only the inner circle is guaranteed visible. Transparent background: the colour comes from the background layer.</desc>
+  <rect x="0" y="0" width="432" height="432" fill="#090104"/>
   <g id="DELETE BEFORE EXPORT - safe area">
     <circle cx="216" cy="216" r="285.12"
             fill="none" stroke="#FF0055" stroke-width="2" stroke-dasharray="12 8"/>

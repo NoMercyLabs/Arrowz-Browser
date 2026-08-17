@@ -2,6 +2,7 @@
      viewBox="0 0 1024 500">
   <title>play-feature-graphic-1024x500</title>
   <desc>Play feature graphic. Cropped differently across surfaces, so keep the wordmark inside the guide.</desc>
+  <rect x="0" y="0" width="1024" height="500" fill="#090104"/>
   <g id="DELETE BEFORE EXPORT - safe area">
     <rect x="96" y="48" width="832" height="404"
           fill="none" stroke="#FF0055" stroke-width="2" stroke-dasharray="12 8"/>

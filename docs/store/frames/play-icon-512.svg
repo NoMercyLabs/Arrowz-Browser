@@ -2,6 +2,7 @@
      viewBox="0 0 512 512">
   <title>play-icon-512</title>
   <desc>Play store icon. Play draws its own rounded mask and shadow over this, so the artwork is a full-bleed square with square corners.</desc>
+  <rect x="0" y="0" width="512" height="512" fill="#090104"/>
   <g id="DELETE BEFORE EXPORT - safe area">
     <circle cx="256" cy="256" r="256"
             fill="none" stroke="#FF0055" stroke-width="2" stroke-dasharray="12 8"/>

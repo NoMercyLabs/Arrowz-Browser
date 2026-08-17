@@ -1,6 +1,8 @@
 # Arrowz Browser — brief for the store and launcher assets
 
-Six frames, in `docs/store/frames/`. Drag the SVGs into Figma and each arrives as an empty frame at exactly the right size, with its safe area drawn as a dashed guide in a group named so it is obvious the guide goes before export.
+Six frames, in `docs/store/frames/`. Drag the SVGs into Figma and each arrives as a frame at exactly the right size, filled with the mark's darkest ground and carrying its safe area as a dashed guide in a group named so it is obvious the guide goes before export.
+
+Both the fill and the guide are there to be replaced. The fill exists because Figma sizes an imported frame to the bounds of its content rather than to the declared width and height, so a frame carrying only an inset guide imports at the size of that guide instead of the size it is supposed to be.
 
 ## The thing to change first: no corner radius
 

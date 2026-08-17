@@ -2,6 +2,7 @@
      viewBox="0 0 640 360">
   <title>launcher-banner-640x360</title>
   <desc>The android:banner tile, 320x180dp at xhdpi. This is the one on the home row of the television.</desc>
+  <rect x="0" y="0" width="640" height="360" fill="#090104"/>
   <g id="DELETE BEFORE EXPORT - safe area">
     <rect x="32" y="18" width="576" height="324"
           fill="none" stroke="#FF0055" stroke-width="2" stroke-dasharray="12 8"/>

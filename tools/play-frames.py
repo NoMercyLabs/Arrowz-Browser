@@ -24,6 +24,10 @@ OUT = os.path.join(ROOT, "docs", "store", "frames")
 
 GUIDE = "#FF0055"
 
+# The mark's darkest ground, so an imported frame is visible on Figma's own
+# canvas rather than being a transparent rectangle the designer has to hunt for.
+GROUND = "#090104"
+
 # (filename, width, height, safe, note)
 #
 # `safe` is (inset_x, inset_y) in pixels, or a radius for the circular mask.
@@ -76,10 +80,19 @@ def svg(name: str, width: int, height: int, safe, note: str) -> str:
             f'          fill="none" stroke="{GUIDE}" stroke-width="2" stroke-dasharray="12 8"/>\n'
         )
 
+    # A rectangle covering the whole viewport, first, and it is not decoration.
+    #
+    # Figma sizes an imported frame to the bounds of its CONTENT, not to the
+    # SVG's declared width and height. Every guide here is inset, and the two
+    # circular ones are inset a long way -- the adaptive icon's is a circle of
+    # radius 143 in a 432 box -- so a file carrying only its guide imports as a
+    # frame around 285 wide and the designer starts from the wrong dimensions,
+    # which is the exact failure these frames exist to prevent.
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"
      viewBox="0 0 {width} {height}">
   <title>{name}</title>
   <desc>{note}</desc>
+  <rect x="0" y="0" width="{width}" height="{height}" fill="{GROUND}"/>
   <g id="DELETE BEFORE EXPORT - safe area">
 {guide}  </g>
 </svg>

@@ -2,6 +2,7 @@
      viewBox="0 0 1920 1080">
   <title>screenshot-1920x1080</title>
   <desc>Store screenshot. The guide is the 5% overscan a television may cut.</desc>
+  <rect x="0" y="0" width="1920" height="1080" fill="#090104"/>
   <g id="DELETE BEFORE EXPORT - safe area">
     <rect x="96" y="54" width="1728" height="972"
           fill="none" stroke="#FF0055" stroke-width="2" stroke-dasharray="12 8"/>
