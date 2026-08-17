@@ -78,6 +78,11 @@
     <string name="menu_stay_signed_in_on">Blijft bewaard als de browser sluit</string>
     <string name="menu_stay_signed_in_off">Wordt uitgelogd als de browser sluit</string>
 
+    <string name="menu_input">Hoe de D-pad beweegt</string>
+    <string name="menu_input_focus">Springt tussen links, met een ring</string>
+    <string name="menu_input_cursor">Beweegt een aanwijzer</string>
+    <string name="menu_input_reader">Een schermlezer bestuurt dit</string>
+
     <string name="menu_privacy">Trackers blokkeren</string>
     <string name="menu_privacy_on">Aan</string>
     <string name="menu_privacy_off">Uit, dus deze pagina laadt alles</string>

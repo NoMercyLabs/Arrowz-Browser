@@ -383,6 +383,18 @@ class MainActivity : ComponentActivity() {
                     onPickSuggestion = { suggestion -> navigate(suggestion.url) },
                     onVoice = { startVoiceInput() },
                     onMenu = { showChrome(ChromeSurface.Menu) },
+                    inputModeIsFocus = when (inputMode) {
+                        InputMode.ScreenReader -> null
+                        InputMode.Focus -> true
+                        InputMode.Cursor -> false
+                    },
+                    onToggleInputMode = {
+                        setInputMode(
+                            if (inputMode == InputMode.Focus) InputMode.Cursor else InputMode.Focus,
+                            remember = true,
+                        )
+                        showChrome(ChromeSurface.None)
+                    },
                     isStaySignedIn =
                         HomeContent.originOf(host?.state?.url ?: "") in signedInOrigins,
                     onToggleStaySignedIn = { toggleStaySignedIn() },
@@ -1625,6 +1637,8 @@ private fun BrowserScreen(
     onMenu: () -> Unit,
     isDesktopSite: Boolean,
     onToggleDesktopSite: () -> Unit,
+    inputModeIsFocus: Boolean?,
+    onToggleInputMode: () -> Unit,
     isStaySignedIn: Boolean,
     onToggleStaySignedIn: () -> Unit,
     isFilteringOn: Boolean,
@@ -1847,6 +1861,8 @@ private fun BrowserScreen(
                 onHistory = onHistory,
                 onFind = onFind,
                 onToggleDesktopSite = onToggleDesktopSite,
+                inputModeIsFocus = inputModeIsFocus,
+                onToggleInputMode = onToggleInputMode,
                 isStaySignedIn = isStaySignedIn,
                 onToggleStaySignedIn = onToggleStaySignedIn,
                 isFilteringOn = isFilteringOn,

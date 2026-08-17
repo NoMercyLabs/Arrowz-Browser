@@ -8,7 +8,7 @@ Most TV browsers fail in the same two places. They fake a mouse badly, so naviga
 
 ## What it does
 
-Every function is reachable from six keys: the four directions, OK, and BACK. That is what a plain Chromecast voice remote gives you, and it is the floor the whole interface is designed against. Remotes with more buttons are welcome to have them, but nothing is ever hidden behind a key your remote may not have.
+Every function is reachable from six keys: the four directions, OK, and BACK. Pages you can walk by focus get a ring; pages you cannot get a pointer. The browser picks, a long press of OK overrules it, and the menu carries the same switch for anyone who has not been told about the long press. That is what a plain Chromecast voice remote gives you, and it is the floor the whole interface is designed against. Remotes with more buttons are welcome to have them, but nothing is ever hidden behind a key your remote may not have.
 
 Media works the way you expect from a browser on a phone. Video goes fullscreen, playback publishes a real media session so transport controls and headset buttons work, audio focus is respected so the browser does not talk over other apps, and audio keeps playing when you leave the app.
 

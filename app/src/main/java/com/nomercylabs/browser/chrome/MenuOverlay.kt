@@ -53,6 +53,11 @@ fun MenuOverlay(
     onHistory: () -> Unit,
     onFind: () -> Unit,
     onToggleDesktopSite: () -> Unit,
+    /** Null while a screen reader is driving, which is not a choice to offer:
+     *  the reader owns the D-pad and switching would put two focus systems on
+     *  one screen. */
+    inputModeIsFocus: Boolean?,
+    onToggleInputMode: () -> Unit,
     isStaySignedIn: Boolean,
     onToggleStaySignedIn: () -> Unit,
     isFilteringOn: Boolean,
@@ -147,6 +152,23 @@ fun MenuOverlay(
                 onClick = onToggleStaySignedIn,
             )
         }
+
+        // Long-pressing OK does this too, and that is the faster way once you
+        // know it. It is not discoverable, and a shortcut nobody is told about
+        // cannot be the only way in -- the same reason the menu has a button in
+        // the address bar as well as a long press.
+        ListRow(
+            title = stringResource(R.string.menu_input),
+            subtitle = stringResource(
+                when (inputModeIsFocus) {
+                    null -> R.string.menu_input_reader
+                    true -> R.string.menu_input_focus
+                    false -> R.string.menu_input_cursor
+                },
+            ),
+            selected = inputModeIsFocus == true,
+            onClick = onToggleInputMode,
+        )
 
         // The count is the subtitle rather than a badge: on a television a
         // number nobody can read is decoration, and this one is the only

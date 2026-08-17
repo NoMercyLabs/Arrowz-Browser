@@ -77,6 +77,11 @@
     <string name="menu_stay_signed_in_on">Kept when the browser closes</string>
     <string name="menu_stay_signed_in_off">Signed out when the browser closes</string>
 
+    <string name="menu_input">How the D-pad moves</string>
+    <string name="menu_input_focus">Jumps between links, with a ring</string>
+    <string name="menu_input_cursor">Moves a pointer</string>
+    <string name="menu_input_reader">A screen reader is driving</string>
+
     <string name="menu_privacy">Tracker blocking</string>
     <string name="menu_privacy_on">On</string>
     <string name="menu_privacy_off">Off, so this page loads everything</string>
