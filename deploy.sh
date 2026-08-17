@@ -135,7 +135,24 @@ deploy_one() {
         adb -s "$serial" uninstall "$PACKAGE" >/dev/null 2>&1 || true
         adb -s "$serial" install "$APK" >/dev/null
     fi
-    echo "$label installed"
+    # Proves the bytes on the device are the bytes just built.
+    #
+    # Three separate rounds were tested against a box that had not been
+    # redeployed to, and every one of them read as "the fix did nothing". An
+    # install that reports success says nothing about which device it reached,
+    # and nothing at all about the other ones. Comparing the APK's hash against
+    # the installed base.apk is the only claim worth making here.
+    local remote installed
+    remote="$(adb -s "$serial" shell pm path "$PACKAGE" 2>/dev/null | tr -d '' | head -1 | cut -d: -f2)"
+    installed="$(adb -s "$serial" shell md5sum "$remote" 2>/dev/null | tr -d '' | cut -d' ' -f1)"
+    if [[ -z "$installed" || "$installed" != "$LOCAL_APK_HASH" ]]; then
+        echo "$label INSTALLED BUILD DOES NOT MATCH: device=${installed:0:8} build=${LOCAL_APK_HASH:0:8}" >&2
+        # Returned rather than recorded in a variable. This runs backgrounded,
+        # so an assignment here dies with the subshell and the parent would
+        # exit zero having just printed that the deploy failed.
+        return 1
+    fi
+    echo "$label installed, matches build ${LOCAL_APK_HASH:0:8}"
 
     if [[ $LAUNCH -eq 1 ]]; then
         # Cleared so the Displayed line we wait for is this launch's, not a
@@ -146,10 +163,23 @@ deploy_one() {
     fi
 }
 
+LOCAL_APK_HASH="$(md5sum "$APK" | cut -d' ' -f1)"
+
+declare -a DEPLOY_PIDS=()
 for serial in "${DEVICES[@]}"; do
     deploy_one "$serial" &
+    DEPLOY_PIDS+=("$!")
 done
-wait
+
+DEPLOY_FAILED=0
+for pid in "${DEPLOY_PIDS[@]}"; do
+    wait "$pid" || DEPLOY_FAILED=1
+done
+
+if [[ $DEPLOY_FAILED -eq 1 ]]; then
+    echo "Deploy did not reach every device with this build. Nothing below is evidence about it." >&2
+    exit 1
+fi
 
 # Waits until the first frame is actually on screen.
 #

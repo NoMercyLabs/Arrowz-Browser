@@ -98,6 +98,10 @@ if (-not (Test-Path $apk)) {
 }
 
 $apkFull = (Resolve-Path $apk).Path
+$localApkHash = (Get-FileHash -Algorithm MD5 $apkFull).Hash.ToLower()
+# Hoisted: PowerShell forbids a method call inside a $using: expression.
+$localApkShort = $localApkHash.Substring(0, 8)
+$mismatch = [System.Collections.Concurrent.ConcurrentBag[string]]::new()
 
 $Device | ForEach-Object -Parallel {
     $serial = $_
@@ -117,7 +121,19 @@ $Device | ForEach-Object -Parallel {
         & adb -s $serial install $using:apkFull *> $null
         if ($LASTEXITCODE -ne 0) { Write-Host "$label install FAILED"; return }
     }
-    Write-Host "$label installed"
+    # Proves the bytes on the device are the bytes just built. Three separate
+    # rounds were tested against a box that had not been redeployed to, and every
+    # one read as "the fix did nothing". An install reporting success says
+    # nothing about which device it reached, nor about the others.
+    $remote = (& adb -s $serial shell pm path $using:package 2>$null | Select-Object -First 1) -replace '\s',''
+    $remote = $remote -replace '^package:',''
+    $installed = ((& adb -s $serial shell md5sum $remote 2>$null) -split '\s+')[0]
+    if ([string]::IsNullOrWhiteSpace($installed) -or $installed -ne $using:localApkHash) {
+        Write-Host "$label INSTALLED BUILD DOES NOT MATCH: device=$installed build=$($using:localApkHash)"
+        ($using:mismatch).Add($serial)
+        return
+    }
+    Write-Host "$label installed, matches build $($using:localApkShort)"
 
     if (-not $using:NoLaunch) {
         # Cleared so the Displayed line we wait for is this launch's, not a
@@ -127,6 +143,10 @@ $Device | ForEach-Object -Parallel {
         Write-Host "$label launched"
     }
 } -ThrottleLimit 8
+
+if ($mismatch.Count -gt 0) {
+    Write-Error "Deploy did not reach every device with this build: $($mismatch -join ', '). Nothing below is evidence about it."
+}
 
 # Waits until the first frame is actually on screen.
 #
