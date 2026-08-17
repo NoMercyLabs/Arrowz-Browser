@@ -241,7 +241,23 @@ async function main() {
   // over a thousand, and no sweep of eighty presses covers that -- but a press
   // that moves nothing is a defect on any page, of any size.
   let presses = 0;
-  let dead = 0;
+
+  /**
+   * How many legs ended, which is NOT how many presses were dead.
+   *
+   * A leg ends precisely because a press did not move focus, so counting those
+   * as dead presses made the number identical to the number of legs by
+   * construction — seven rows swept, seven "dead" presses, every time, on a
+   * page with nothing wrong with it. It read like a defect count and was a
+   * shape count.
+   *
+   * A press at the true edge of the content in a direction is not a defect:
+   * there is nothing that way, and the chrome takes UP while the rest correctly
+   * do nothing. What matters is how far each leg got before that happened, and
+   * whether the legs together cover the page, which is what the numbers below
+   * report.
+   */
+  let legEnds = 0;
 
   // Down the first column, then across each row it found. A form is a raster
   // and this is how somebody covers one: four single-line sweeps from the same
@@ -258,7 +274,7 @@ async function main() {
     // Only a press that changes nothing ends the sweep. Stopping on a
     // revisit ends it at the first element the page brings back into view
     // after a scroll, which is four rows into a page of twelve.
-    if (landed === head) { dead++; break; }
+    if (landed === head) { legEnds++; break; }
     if (column.length > 2 && landed === column[0]) break;
     head = landed;
     column.push(landed);
@@ -290,7 +306,7 @@ async function main() {
     for (let step = 0; step < 12; step++) {
       presses++;
       const landed = await pressAndSettle(socket, 'right', row[row.length - 1]);
-      if (landed === row[row.length - 1]) dead++;
+      if (landed === row[row.length - 1]) legEnds++;
       if (row.includes(landed)) break;
       row.push(landed);
       visited.add(landed);
@@ -306,7 +322,7 @@ async function main() {
     focusablesReported: total,
     distinctReached: visited.size,
     presses,
-    deadPresses: dead,
+    legEnds,
     columnStops: column.length,
     rowsSwept: rowStops.length,
     reached: [...visited].sort(),

@@ -186,10 +186,11 @@ cookie bar walks the bar and then returns to the article.
 Driven on the 8000, with the harness waiting on the browser rather than on a
 clock:
 
-| Page | In reach | Reached | Presses | Dead | Column stops | Rows swept |
+| Page | In reach | Reached | Presses | Column stops | Rows swept | Legs ended |
 |---|---|---|---|---|---|---|
-| en.wikipedia.org article | 58 | 56 | 65 | 7 | 41 | 7 of 41 |
-| developer.android.com | 26 | 32 | 42 | 9 | 22 | 8 of 22 |
+| en.wikipedia.org article | 58 | 56 | 65 | 41 (capped) | 7 of 41 | 7 |
+| developer.android.com | 26 | 32 | 42 | 22 | 8 of 22 | 9 |
+| news.ycombinator.com | 218 | 51 | 73 | 41 (capped) | 7 of 41 | 7 |
 
 "In reach" is what the page reported within a screen of the viewport at the
 moment it was asked, which is why a sweep that scrolls the whole document can
@@ -197,6 +198,21 @@ reach more than that number rather than fewer. The column on
 developer.android.com ends on `glue-cookie-notification-bar-1`, which is the
 pinned bar being reached at the end of the page rather than trapping focus in
 the middle of it.
+
+### The dead-press count was measuring the harness
+
+The column above used to be headed "dead presses", and the three runs above are
+what retired it: 7, 9 and 7 — which are exactly 7 rows, 8 rows plus a column
+that ended, and 7 rows plus a column that hit its step cap. The number was equal
+to the number of legs in every run, on pages with nothing wrong with them,
+because a leg ends *precisely* when a press does not move focus. It read like a
+defect count and was a shape count.
+
+A press at the true edge of the content in a direction is not a defect. `UP`
+with nothing above hands the key to the chrome and reveals the address bar;
+`DOWN`, `LEFT` and `RIGHT` at an edge correctly do nothing, which is what every
+focus system does at a boundary. What is worth counting is how far each leg gets
+and whether the legs together cover the page, so that is what is reported.
 
 The release build cannot be driven this way at all: it is not debuggable, so it
 carries no devtools socket. It is driven instead by pressing keys and comparing
