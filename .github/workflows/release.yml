@@ -129,8 +129,15 @@ jobs:
       # Publishing to the internal track only. Promotion to production stays a
       # manual decision in the Play Console, because a browser reaching every
       # Android TV device is not something a tag push should do on its own.
+      # continue-on-error, because the artifacts are already built, signed and
+      # attached by this point: a Play rejection must not retract a release
+      # people can download. The commonest rejection is PERMISSION_DENIED on a
+      # package Play has never heard of, which is what an app that has not been
+      # created in the Console yet looks like from the API.
       - name: Publish to internal testing
+        id: upload
         if: steps.play.outputs.configured == 'true'
+        continue-on-error: true
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -138,3 +145,19 @@ jobs:
           releaseFiles: app/build/outputs/bundle/release/app-release.aab
           track: internal
           status: completed
+
+      - name: Did the Play upload land
+        if: steps.play.outputs.configured == 'true'
+        run: |
+          if [ "${{ steps.upload.outcome }}" = "success" ]; then
+            echo "Uploaded to the internal track." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::warning title=Play upload was rejected::The release itself is complete and its artifacts are attached. The upload to the internal track failed -- if this is PERMISSION_DENIED, com.nomercylabs.arrowz does not exist in the Play Console yet. See docs/release.md."
+          {
+            echo '### The Play upload was rejected'
+            echo
+            echo 'The artifacts were built, signed, checksummed and attached to the release.'
+            echo 'Only the upload to the internal track failed, so nothing is lost -- see the'
+            echo 'step log for the reason Play gave.'
+          } >> "$GITHUB_STEP_SUMMARY"

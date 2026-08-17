@@ -35,16 +35,31 @@ Set these on the GitHub repository once it exists:
 | `NM_KEYSTORE_PASSWORD` | keystore password |
 | `NM_KEY_ALIAS` | `upload` |
 | `NM_KEY_PASSWORD` | key password, same as the keystore password |
-| `PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account JSON, once the listing exists |
+| `PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account JSON |
 
-The four signing secrets are set. `PLAY_SERVICE_ACCOUNT_JSON` is the only one
-outstanding, and it is the only thing between a tag and an upload.
+All five are set. The credential is a key for
+`play-publisher@nomercy-tv.iam.gserviceaccount.com`, an account that already
+existed for NoMercy TV and is already linked to the Play developer account: it
+authenticates and opens a release edit on `tv.nomercy.app`, so the credential
+half of publishing is proven rather than assumed.
 
-### Minting the Play service account
+What it cannot do yet is reach `com.nomercylabs.arrowz`, which answers
+`PERMISSION_DENIED`. There is no app-creation call in the Play Developer API, so
+no credential can fix that. The app has to be created once in the Play Console,
+by hand, and the upload works from the next tag onward.
 
-This spans two consoles and mints a long-lived credential that can publish to
-the account, so it is worth doing in one sitting on a desktop rather than in
-pieces. Every step is on `console.cloud.google.com` until it says otherwise.
+### Minting a Play service account
+
+Kept because the current key is long-lived rather than permanent, and this is
+what replacing it looks like. Every step is on `console.cloud.google.com` until
+it says otherwise. The first four are `gcloud` commands if it is installed and
+signed in, which is faster and leaves no key in a downloads folder:
+
+```
+gcloud services enable androidpublisher.googleapis.com --project <project>
+gcloud iam service-accounts keys create key.json \
+  --iam-account play-publisher@<project>.iam.gserviceaccount.com
+```
 
 1. Create or pick a Google Cloud project. It exists only to own the key; nothing
    is billed and nothing runs in it.
@@ -80,8 +95,9 @@ name, and re-running a tag replays the workflow as it stood at that tag rather
 than as it stands now, so it would also name its artifacts `nomercy-browser-*`.
 
 The rename therefore needs a new tag rather than a re-run. `v0.1.1` is cut, and
-publishes to GitHub whether or not the Play secret exists: without it the upload
-step warns on the run page and in the job summary rather than passing silently.
+publishes to GitHub whether or not Play accepts the bundle: a rejected upload
+warns on the run page and in the job summary, and never retracts artifacts that
+are already built, signed and attached.
 
 ## What a tag produces
 
