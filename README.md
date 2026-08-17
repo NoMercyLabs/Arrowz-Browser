@@ -58,10 +58,23 @@ them so a download can be checked rather than trusted.
 node tools/spatial-drive.mjs <serial> <url>
 ```
 
-Presses real remote keys at a real device and reports where focus went, against
-a debug page carrying every input type a site can use. It is the ruler that
-catches what the geometry fixtures cannot, and the reasoning is in
-[docs/design/spatial-navigation-on-hardware.md](docs/design/spatial-navigation-on-hardware.md). On a page carrying one of every input type it reaches 22 of 25 controls by sweep, and the other three by hand.
+Presses real remote keys at a real device and reports where focus went, both
+against a debug page carrying every input type a site can use and against the
+open web. It is the ruler that catches what the geometry fixtures cannot, and
+the reasoning is in
+[docs/design/spatial-navigation-on-hardware.md](docs/design/spatial-navigation-on-hardware.md).
+On a page carrying one of every input type it reaches 22 of 25 controls by
+sweep, and the other three by hand. On a Wikipedia article the column walk
+covers 41 stops from the header to the end of the page, reaching 56 of the 58
+controls within reach of the viewport, and the page scrolls by what it takes to
+show the next one rather than a screenful at a time.
+
+Two things it will not reach, and neither is a navigation defect. A site whose
+consent dialog lives in a third-party iframe puts every one of its controls
+outside this document, so nothing in the page can see them; the browser counts
+what is reachable, finds nothing, and hands that page to the pointer. And the
+release build carries no devtools socket because it is not debuggable, so it is
+driven by comparing screenshots between presses instead.
 
 ## What it cannot do
 

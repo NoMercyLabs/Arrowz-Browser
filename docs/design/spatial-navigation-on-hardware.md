@@ -181,6 +181,30 @@ top, the bar by pressing down at the end. Both were then checked for the
 opposite failure, that a reachable thing is a trap: pressing up out of the
 cookie bar walks the bar and then returns to the article.
 
+## What the sweep says now
+
+Driven on the 8000, with the harness waiting on the browser rather than on a
+clock:
+
+| Page | In reach | Reached | Presses | Dead | Column stops | Rows swept |
+|---|---|---|---|---|---|---|
+| en.wikipedia.org article | 58 | 56 | 65 | 7 | 41 | 7 of 41 |
+| developer.android.com | 26 | 32 | 42 | 9 | 22 | 8 of 22 |
+
+"In reach" is what the page reported within a screen of the viewport at the
+moment it was asked, which is why a sweep that scrolls the whole document can
+reach more than that number rather than fewer. The column on
+developer.android.com ends on `glue-cookie-notification-bar-1`, which is the
+pinned bar being reached at the end of the page rather than trapping focus in
+the middle of it.
+
+The release build cannot be driven this way at all: it is not debuggable, so it
+carries no devtools socket. It is driven instead by pressing keys and comparing
+screenshots between them, which on the 8010 gave eight presses, eight distinct
+frames and no press that changed nothing, with the ring visible on article
+links. That is the check that would have caught the R8 black screen, so it is
+the one the release variant needs.
+
 ## Sites where there is nothing to navigate
 
 BBC News and Stack Overflow report **zero** reachable focusables, or only the
