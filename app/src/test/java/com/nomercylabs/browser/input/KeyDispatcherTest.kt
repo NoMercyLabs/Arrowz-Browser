@@ -16,7 +16,7 @@ class KeyDispatcherTest {
 
     @Test
     fun backExitsFullscreenBeforeAnythingElse() {
-        val state = BrowserState(isFullscreen = true, isChromeOpen = true, canGoBack = true)
+        val state = BrowserState(isFullscreen = true, isSurfaceOpen = true, canGoBack = true)
         assertEquals(Command.ExitFullscreen, back(state))
     }
 
@@ -25,19 +25,19 @@ class KeyDispatcherTest {
     // surfaces and BACK only ever dismissed the outer one.
     @Test
     fun backClosesTheKeyboardBeforeTheBarThatRaisedIt() {
-        val state = BrowserState(isChromeOpen = true, isEditingText = true, canGoBack = true)
+        val state = BrowserState(isSurfaceOpen = true, isEditingText = true, canGoBack = true)
         assertEquals(Command.StopEditing, back(state))
     }
 
     @Test
     fun backExitsFullscreenEvenWhileEditing() {
-        val state = BrowserState(isFullscreen = true, isEditingText = true, isChromeOpen = true)
+        val state = BrowserState(isFullscreen = true, isEditingText = true, isSurfaceOpen = true)
         assertEquals(Command.ExitFullscreen, back(state))
     }
 
     @Test
     fun backClosesChromeBeforeWalkingHistory() {
-        val state = BrowserState(isChromeOpen = true, canGoBack = true)
+        val state = BrowserState(isSurfaceOpen = true, canGoBack = true)
         assertEquals(Command.CloseChrome, back(state))
     }
 
@@ -66,15 +66,30 @@ class KeyDispatcherTest {
     // the next releases the field, the one after that leaves the page.
     @Test
     fun aChromeSurfaceOverAFocusedFieldClosesFirst() {
-        val state = BrowserState(isChromeOpen = true, isPageFieldFocused = true, canGoBack = true)
+        val state = BrowserState(isSurfaceOpen = true, isPageFieldFocused = true, canGoBack = true)
         assertEquals(Command.CloseChrome, back(state))
     }
 
-    // The guarantee that no page can trap the user: once history is exhausted,
-    // BACK always reaches the app exit rather than becoming a no-op.
+    // Measured on the 8010: opening the first page from the home grid and
+    // pressing BACK left the browser entirely, because that page has no history
+    // behind it. One press went from a site to the launcher and the grid the
+    // viewer came from never appeared. An accidental exit is indistinguishable
+    // from a crash.
     @Test
-    fun backExitsTheAppWhenHistoryIsExhausted() {
-        assertEquals(Command.ExitApp, back(BrowserState(canGoBack = false)))
+    fun backReturnsToTheHomeGridBeforeItEverMeansExit() {
+        val state = BrowserState(canGoBack = false, isShowingHome = false)
+        assertEquals(Command.GoHome, back(state))
+    }
+
+    // The guarantee that no page can trap the user: from the home screen, with
+    // history exhausted, BACK still reaches the door rather than becoming a
+    // no-op.
+    @Test
+    fun backExitsTheAppFromTheHomeScreen() {
+        assertEquals(
+            Command.ExitApp,
+            back(BrowserState(canGoBack = false, isShowingHome = true)),
+        )
     }
 
     @Test
@@ -82,7 +97,7 @@ class KeyDispatcherTest {
         val states = listOf(
             BrowserState(),
             BrowserState(isFullscreen = true),
-            BrowserState(isChromeOpen = true),
+            BrowserState(isSurfaceOpen = true),
             BrowserState(canGoBack = true),
         )
         states.forEach { state ->
@@ -125,7 +140,7 @@ class KeyDispatcherTest {
     // keys and Center belong to Compose focus, so the pointer must not move.
     @Test
     fun chromeOpenMeansChromeOwnsTheDpad() {
-        val open = BrowserState(isChromeOpen = true, isPageAtTop = true, isCursorAtTopEdge = true)
+        val open = BrowserState(isSurfaceOpen = true, isPageAtTop = true, isCursorAtTopEdge = true)
         listOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right, RemoteKey.Center)
             .forEach { key ->
                 assertNull(KeyDispatcher.dispatch(key, KeyPhase.Down, open))
@@ -141,7 +156,7 @@ class KeyDispatcherTest {
             KeyDispatcher.dispatch(
                 RemoteKey.Back,
                 KeyPhase.Up,
-                BrowserState(isChromeOpen = true, canGoBack = true),
+                BrowserState(isSurfaceOpen = true, canGoBack = true),
             ),
         )
     }
@@ -171,7 +186,7 @@ class KeyDispatcherTest {
     // BACK is the exception: exiting the app must work with a screen reader on.
     @Test
     fun screenReaderModeStillHandlesBack() {
-        val state = BrowserState(mode = InputMode.ScreenReader, canGoBack = true)
+        val state = BrowserState(mode = InputMode.ScreenReader, canGoBack = true, isShowingHome = true)
         assertEquals(Command.GoBack, back(state))
         assertEquals(Command.ExitApp, back(state.copy(canGoBack = false)))
     }

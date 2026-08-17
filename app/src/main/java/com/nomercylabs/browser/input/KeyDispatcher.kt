@@ -63,25 +63,34 @@ object KeyDispatcher {
         }
 
     /**
-     * BACK's six meanings, first match wins.
+     * BACK's seven meanings, first match wins.
      *
      * The order is the whole specification. Exiting fullscreen must outrank
      * history, or leaving a video navigates the page underneath it; closing the
      * keyboard must outrank closing the bar that raised it, or one press throws
-     * away what was being typed; closing chrome must outrank history for the
-     * same reason. Releasing a focused page field sits below chrome and above
+     * away what was being typed; closing a surface must outrank history for the
+     * same reason. Releasing a focused page field sits below surfaces and above
      * history, so leaving a form is one press and leaving the page is the next,
-     * rather than one press doing both. Reaching [Command.ExitApp] once history
-     * is exhausted is what guarantees no page can trap the user.
+     * rather than one press doing both.
+     *
+     * The home screen is the last rung before the door. Measured on the 8010:
+     * open the first page from the home grid and BACK left the browser
+     * altogether, because that page has no history behind it — so one press
+     * went from a site to the launcher, with the grid the viewer came from
+     * never appearing. An accidental exit is indistinguishable from a crash,
+     * which is the complaint this browser exists to answer. Home first, then
+     * the door, and reaching [Command.ExitApp] from there is what still
+     * guarantees no page can trap anybody.
      */
     private fun dispatchBack(phase: KeyPhase, state: BrowserState): Command? = when (phase) {
         KeyPhase.LongPress -> Command.OpenMenu
         KeyPhase.Up -> when {
             state.isFullscreen -> Command.ExitFullscreen
             state.isEditingText -> Command.StopEditing
-            state.isChromeOpen -> Command.CloseChrome
+            state.isSurfaceOpen -> Command.CloseChrome
             state.isPageFieldFocused -> Command.ReleasePageFocus
             state.canGoBack -> Command.GoBack
+            !state.isShowingHome -> Command.GoHome
             else -> Command.ExitApp
         }
         KeyPhase.Down -> null

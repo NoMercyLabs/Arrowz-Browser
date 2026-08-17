@@ -53,7 +53,12 @@ enum class InputMode {
 data class BrowserState(
     val mode: InputMode = InputMode.Cursor,
     val isFullscreen: Boolean = false,
-    val isChromeOpen: Boolean = false,
+    /** A chrome surface is over the page: the bar, the menu, a library, a field
+     *  sheet. Not the home screen, which is a place rather than an overlay. */
+    val isSurfaceOpen: Boolean = false,
+    /** The tab is showing the home grid instead of a page. The journey starts
+     *  here, so it is also where BACK stops walking and starts meaning exit. */
+    val isShowingHome: Boolean = false,
     val canGoBack: Boolean = false,
     val isPageAtTop: Boolean = false,
     /**
@@ -83,7 +88,16 @@ data class BrowserState(
      * alarming thing an input can do.
      */
     val isPageFieldFocused: Boolean = false,
-)
+) {
+    /**
+     * Whether Compose owns the D-pad rather than the page.
+     *
+     * The home screen and a surface differ for BACK and agree for everything
+     * else: both are our own focus territory with no page under a pointer.
+     * Derived rather than passed, so the two can never disagree.
+     */
+    val isChromeOpen: Boolean get() = isSurfaceOpen || isShowingHome
+}
 
 /**
  * What should happen, named rather than performed. The host turns these into
@@ -98,6 +112,9 @@ sealed interface Command {
     data object ReleasePageFocus : Command
     data object OpenMenu : Command
     data object GoBack : Command
+
+    /** Back to the tab's home grid, which is where the journey started. */
+    data object GoHome : Command
     data object ExitApp : Command
     data object RevealNavBar : Command
     data object ToggleInputMode : Command

@@ -82,8 +82,19 @@ class FormBridge(
         hasDirtyForm = true
     }
 
+    @JavascriptInterface
+    fun onFieldBlurred() {
+        handler.post { focusedField = null }
+    }
+
     fun commit(id: String, value: String) {
+        val committed: FormField? = focusedField
         evaluate("window.__nmForms && window.__nmForms.commit('$id', ${value.asJsString()})")
+        // The page puts focus back on the element it just wrote, so navigation
+        // carries on from the field rather than the top of the document. That
+        // refocus is deliberately silent — it must not read as the viewer
+        // choosing to edit again — so the record is restored here instead.
+        handler.post { focusedField = committed }
     }
 
     fun select(id: String, optionIndex: Int) {

@@ -667,9 +667,12 @@ class MainActivity : ComponentActivity() {
         canGoBack = host?.state?.canGoBack ?: false,
         isPageAtTop = host?.state?.isAtTop ?: true,
         isCursorAtTopEdge = cursor.y <= EdgeScroller.EDGE_BAND_PX,
-        // The home screen is Compose focus territory, exactly like the bar and
-        // the tab list: there is no page under the pointer to click.
-        isChromeOpen = chrome != ChromeSurface.None || (registry.active?.isHome ?: true),
+        // Told apart because BACK treats them differently and everything else
+        // does not: the home screen is Compose focus territory exactly like the
+        // bar and the tab list, but it is a place to return to rather than an
+        // overlay to close.
+        isSurfaceOpen = chrome != ChromeSurface.None,
+        isShowingHome = registry.active?.isHome ?: true,
         isFullscreen = fullscreenActive,
         // The window is asked rather than the composition flag: the leanback IME
         // hides itself on BACK and does not always consume the key, so the flag
@@ -1008,6 +1011,14 @@ class MainActivity : ComponentActivity() {
     private fun route(command: Command?): Boolean = when (command) {
         null -> false
         Command.GoBack -> { host?.goBack(); true }
+
+        // The grid the viewer came from, not the launcher. The page stays
+        // loaded behind it, so returning to it costs nothing.
+        Command.GoHome -> {
+            registry.active?.isHome = true
+            showChrome(ChromeSurface.None)
+            true
+        }
         Command.ExitApp -> { finish(); true }
 
         is Command.StartMove -> {

@@ -32,16 +32,28 @@ object NavigabilityProbe {
         // systems moving focus is worse than either one alone.
         if (page.stealsFocus) return false
 
-        if (page.visible < MINIMUM_VISIBLE) return false
-
-        // Density, not raw count: twelve links spread over ten screens is a
-        // long article, and a press that scrolls a screenful to reach the next
-        // one is not navigation.
-        return page.total >= MINIMUM_TOTAL
+        // What is on screen, and nothing else. There was a second gate on the
+        // page's total count, and removing the phantom elements from the
+        // collector proved it was measuring the phantoms: DuckDuckGo's home page
+        // reported 56 with 46 of them a closed off-canvas drawer, cleared that
+        // gate comfortably, and then reported an honest 6 and failed it. The
+        // page had not changed. The ruler had.
+        //
+        // Total was there to catch "twelve links spread over ten screens", and
+        // visible already says that better — twelve links over ten screens is
+        // one or two per screenful. A page with six reachable targets on screen
+        // and nothing below the fold is exactly the page focus is for.
+        return page.visible >= MINIMUM_VISIBLE
     }
 
-    /** Six on screen is roughly a navigation bar plus a couple of cards, which
-     *  is where walking focus starts to beat aiming a pointer. */
-    private const val MINIMUM_VISIBLE: Int = 6
-    private const val MINIMUM_TOTAL: Int = 8
+    /**
+     * Four on screen: a login form is two fields, a button and a link, and that
+     * is the clearest case in the world for walking focus rather than aiming a
+     * pointer at it. Below that — a video page with two controls, a map, a
+     * canvas — the pointer wins.
+     *
+     * Was six, against counts inflated by elements nobody could reach. Six
+     * honest targets is a busy screen, not a threshold.
+     */
+    private const val MINIMUM_VISIBLE: Int = 4
 }

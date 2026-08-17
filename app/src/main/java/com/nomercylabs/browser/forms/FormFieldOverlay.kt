@@ -67,8 +67,14 @@ fun FormFieldOverlay(
 
         // Required and invalid are the page's own judgement, shown here rather
         // than discovered through a submit whose result the viewer cannot see.
+        //
+        // An empty field is not invalid, it is empty — but the page says
+        // otherwise: `validity.valid` is false for any untouched required
+        // field, so DuckDuckGo's search box opened reading "this page says that
+        // is not valid yet" before a single character had been typed. Told off
+        // for nothing is a bad way to meet a form.
         val note: String = when {
-            field.isInvalid -> stringResource(R.string.form_invalid)
+            field.isInvalid && value.isNotEmpty() -> stringResource(R.string.form_invalid)
             field.isRequired -> stringResource(R.string.form_required)
             else -> ""
         }

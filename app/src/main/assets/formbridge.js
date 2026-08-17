@@ -215,6 +215,16 @@
     report(event.target);
   }, true);
 
+  // Focus leaving matters as much as focus arriving. Opening the sheet takes
+  // Android focus off the WebView, which blurs the element, and without this the
+  // app still believed a field was focused: BACK then spent a press releasing
+  // something that had already let go.
+  document.addEventListener('focusout', function (event) {
+    if (suppressReports) return;
+    if (!kindOf(event.target)) return;
+    if (window.NmForms && window.NmForms.onFieldBlurred) window.NmForms.onFieldBlurred();
+  }, true);
+
   /*
    * Any edit at all. The tab that holds it is then exempt from suspension,
    * because WebView.saveState does not reliably carry unsaved input and losing
