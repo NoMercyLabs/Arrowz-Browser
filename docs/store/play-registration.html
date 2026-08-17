@@ -240,11 +240,11 @@
     <ol>
       <li><strong>Create the app</strong> in the console under the NoMercy Labs developer account, with the app name and package below. Nothing else can start until the package exists there.</li>
       <li><strong>Publish the privacy policy at a public URL.</strong> It is a hard requirement and the console will not accept the listing without it. The text is written and final; it needs hosting.</li>
-      <li><strong>Add <code>PLAY_SERVICE_ACCOUNT_JSON</code></strong> to the repository secrets. The release workflow already reads it and skips publishing silently when it is absent, so the tag looks successful and nothing reaches the console.</li>
+      <li><strong>Add <code>PLAY_SERVICE_ACCOUNT_JSON</code></strong> to the repository secrets &mdash; the only one missing. The four signing secrets are already set. A run without it now warns on the run page and in the job summary rather than passing quietly, but it still cannot publish.</li>
       <li><strong>Complete the EU DSA trader declaration</strong> on the developer account. It blocks distribution in the EU, which is where you are.</li>
       <li><strong>Grant production-track rights</strong> on the account if you want promotion beyond internal testing. Internal works without it.</li>
     </ol>
-    <p class="note">Once the service account secret is in place, re-running the <code>v0.1.0</code> release workflow publishes the existing build to internal testing. Nothing needs rebuilding.</p>
+    <p class="note"><strong>Do not re-run the <code>v0.1.0</code> release.</strong> That tag predates the rename: it builds <span class="val">com.nomercylabs.browser</span> under the old name, which is not the package you are about to register, and re-running a tag replays the workflow as it stood at that tag rather than as it stands now. The rename needs a new tag &mdash; <span class="val">v0.1.1</span> &mdash; cut after the service account secret exists.</p>
   </section>
 
   <section>

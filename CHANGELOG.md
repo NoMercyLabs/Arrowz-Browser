@@ -6,7 +6,38 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+The product is now **Arrowz Browser**, named and drawn by a designer, and the
+application id moved with it to `com.nomercylabs.arrowz`. That id is permanent
+from the first upload to Play onward, and nothing had been published, so this
+was the last moment it could change. Anyone with a sideloaded build of the old
+package should uninstall it: the two are separate applications to Android and
+will sit side by side otherwise.
+
+Every colour now comes from the logo exports rather than from a palette designed
+alongside them. Light mode uses the mark's deep shade rather than its accent,
+because the accent cannot carry a focus indicator against a bright ground, and
+warnings moved to amber now that red means "this is where focus is".
+
+### Fixed
+
+Spatial navigation reached three links on an article and stopped. Four separate
+causes: the sentinel for "no section" was being treated as a section, so a whole
+page body shared one remembered child; the input-mode probe re-entered the page
+for three seconds after load and threw focus back to the top; a page reporting
+progress was read as a fresh navigation, which also recorded every visit twice;
+and the retry after a scroll read the page's geometry on a fixed timer instead
+of waiting for the scroll it asked for.
+
+Pages now scroll by what it takes to reveal the next thing rather than a
+screenful at a time, and one press costs a fraction of what it did — a snapshot
+of a long article was walking every focusable on the page and asking the browser
+for a computed style up each one's ancestors.
+
+A release cut without `PLAY_SERVICE_ACCOUNT_JSON` said nothing and passed. It
+now warns on the run page and in the job summary, because a green release that
+published nothing is worse than a red one.
 
 ## [0.1.0] - 2026-08-17
 

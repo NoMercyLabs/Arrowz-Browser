@@ -102,6 +102,11 @@ jobs:
       # The secrets context is not available in a step-level if, so the check
       # has to become a step output. Using it directly makes GitHub reject the
       # whole workflow file, which shows up as a run with no jobs at all.
+      # Loudly, because a green run that published nothing is the worst outcome
+      # here. Skipping is legitimate -- a release can be cut for sideloading
+      # alone -- so this warns rather than fails, but it warns where it cannot
+      # be missed: an annotation on the run and a line in the job summary, not a
+      # log line eleven steps deep that nobody scrolls to.
       - name: Is Play publishing configured
         id: play
         env:
@@ -109,9 +114,16 @@ jobs:
         run: |
           if [ -n "$PLAY_JSON" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Publishing $GITHUB_REF_NAME to the internal track." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "No Play service account configured; skipping upload."
+            echo "::warning title=Nothing was published to Play::PLAY_SERVICE_ACCOUNT_JSON is not set, so this release built and attached its artifacts but never reached the Play Console. See docs/release.md."
+            {
+              echo '### Nothing was published to Play'
+              echo
+              echo 'The artifacts were built, signed, checksummed and attached to the release, and'
+              echo 'the upload was skipped because `PLAY_SERVICE_ACCOUNT_JSON` is not set.'
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # Publishing to the internal track only. Promotion to production stays a
