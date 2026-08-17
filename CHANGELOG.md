@@ -22,6 +22,25 @@ warnings moved to amber now that red means "this is where focus is".
 
 ### Fixed
 
+Closing the menu over the home screen left nothing focused. Every direction did
+nothing and only OK brought the interface back, because focus was being asked
+for on the home screen's focus group rather than on a control inside it.
+Requesting focus on a group reports success and leaves the group itself holding
+it with no leaf below active, so there was no ring to see and no origin for a
+press to move from. The address field is asked directly now.
+
+The row showing a setting that is on was filled with the accent at 35% over
+whatever sat behind it. That is a lift on a dark ground and a wash on a light
+one: in light mode it composited to a muddy `#C9A1AE`, darker than the rows
+around it and 3.12:1 under the subtitle, so the word "On" was both hard to read
+and dressed as "off". Selection is a per-mode colour now, lit rather than
+dimmed, and the subtitle reaches 5.57:1.
+
+A television app installed itself on phones. `uses-feature leanback` is Play
+Store distribution metadata and the platform installer never reads it, so
+`deploy.sh` put the browser on every connected device. It targets leanback
+devices only now, and names what it skips.
+
 Spatial navigation reached three links on an article and stopped. Four separate
 causes: the sentinel for "no section" was being treated as a section, so a whole
 page body shared one remembered child; the input-mode probe re-entered the page

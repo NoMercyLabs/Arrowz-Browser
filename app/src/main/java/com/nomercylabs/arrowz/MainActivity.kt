@@ -1750,20 +1750,24 @@ private fun BrowserScreen(
         // between them: the bar sends DOWN to it and the grid answers to it.
         val firstTile = remember { FocusRequester() }
         val homeField = remember { FocusRequester() }
-        val homeSection = remember { FocusRequester() }
 
-        // Every surface that closes hands focus back to where it was taken
-        // from, not to the top of the screen. Compose restores nothing on its
-        // own: the surface that had focus is gone, the home screen becomes
-        // focusable again, and nothing asks for it, so every direction does
-        // nothing on a screen that looks fine. `focusRestorer` remembers the
-        // child that had it, and the field is the fallback for the first time
-        // through when there is nothing yet to remember.
+        // Every surface that closes hands focus back to the home screen.
+        // Compose restores nothing on its own: the surface that had focus is
+        // gone, the home screen becomes focusable again, and nothing asks for
+        // it, so every direction does nothing on a screen that looks fine.
+        //
+        // The field, not the section. Asking the section was the bug: requesting
+        // focus on a focus group reports Success(true) — measured on the 8000 —
+        // and leaves the group itself holding focus with no leaf below it
+        // active. Nothing draws a ring, and a direction press has no origin to
+        // move from, so the screen ignored UP, DOWN and LEFT and only came back
+        // when OK reached the field by another route.
+        //
+        // `focusRestorer` still earns its place for directional re-entry, which
+        // is where it actually fires; it does not run for a programmatic request.
         LaunchedEffect(chrome, showHome) {
             if (chrome != ChromeSurface.None || !showHome) return@LaunchedEffect
-            if (runCatching { homeSection.requestFocus() }.isFailure) {
-                runCatching { homeField.requestFocus() }
-            }
+            runCatching { homeField.requestFocus() }
         }
 
         if (showHome) {
@@ -1777,7 +1781,6 @@ private fun BrowserScreen(
                     // take focus. Without this the D-pad walks out of the menu
                     // into the address bar behind it, and the menu is still on
                     // screen with nothing in it focused.
-                    .focusRequester(homeSection)
                     .focusGroup()
                     .focusRestorer(homeField)
                     .focusProperties { canFocus = chrome == ChromeSurface.None },

@@ -42,6 +42,19 @@ data class Palette(
      * the one that asked.
      */
     val surfaceOffered: Color,
+    /**
+     * What a row showing the setting the app is currently on is filled with.
+     *
+     * This was the accent at 35% over whatever sat behind it, which is a lift on
+     * a dark ground and a wash on a light one. In light mode it composited to
+     * `#C9A1AE`: darker than the unselected rows around it, and 3.12:1 under the
+     * subtitle, so the word "On" was both unreadable and dressed as "off".
+     *
+     * A per-mode value instead. Selection reads as lit rather than dimmed, and
+     * the accent bar beside it carries the signal for anyone the tint does not
+     * reach.
+     */
+    val surfaceSelected: Color,
     val onSurface: Color,
     val onSurfaceMuted: Color,
     val accent: Color,
@@ -78,6 +91,7 @@ object Palettes {
         // two levels and the interface needs three, so this is a step further
         // along the same line rather than a new colour.
         surfaceOffered = Color(0xFF2E0512),
+        surfaceSelected = Color(0xFF3B0114),
         outline = Color(0x1FFFFFFF),
         onSurface = Color(0xFFF7F2F4),
         onSurfaceMuted = Color(0xFFB9A8AE),
@@ -119,6 +133,7 @@ object Palettes {
         surface = Color(0xFFFAF7F8),
         surfaceRaised = Color(0xFFEFE6E9),
         surfaceOffered = Color(0xFFDCCDD3),
+        surfaceSelected = Color(0xFFF9DCE5),
         outline = Color(0x1F000000),
         onSurface = Color(0xFF1F000A),
         onSurfaceMuted = Color(0xFF6B5158),

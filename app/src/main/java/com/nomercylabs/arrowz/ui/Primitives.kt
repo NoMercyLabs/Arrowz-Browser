@@ -162,7 +162,7 @@ fun focusFill(focused: Boolean, selected: Boolean = false, offered: Boolean = fa
     val palette: Palette = LocalPalette.current
     return when {
         focused -> palette.accent
-        selected -> palette.accentDeep.copy(alpha = SELECTED_ALPHA)
+        selected -> palette.surfaceSelected
         offered -> palette.surfaceOffered
         else -> palette.surfaceRaised
     }
@@ -587,7 +587,6 @@ private val TILE_LETTER_SPACING = 2.sp
 private val TILE_HEIGHT = 120.dp
 private val BUTTON_SIZE = 48.dp
 private val SELECTED_BAR_HEIGHT = 40.dp
-private const val SELECTED_ALPHA: Float = 0.35f
 private const val MUTED_ON_ACCENT: Float = 0.75f
 
 /** Nearly opaque. A header has to be readable over whatever the page happens to
