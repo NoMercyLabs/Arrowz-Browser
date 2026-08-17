@@ -43,6 +43,29 @@ Tag pushes build an AAB and publish to the **internal** track only. Promotion to
 
 That is deliberate. A browser reaching every Android TV device is not something a tag push should be able to do by itself, and the Android TV quality review is worth passing before a wide audience sees the app.
 
+## The release build is a different program
+
+R8 runs only on the release variant, and it has already broken this app once in
+a way nothing else would have caught: the minified build reported `Displayed` in
+1.1 seconds, added its window, loaded WebView and rendered a black screen, with
+no crash and nothing in logcat. `-dontoptimize` in `app/proguard-rules.pro` is
+what makes it render, and the comment there records the bisect that found it.
+
+So a release build is never assumed to work because the debug build does. CI
+builds `assembleRelease` on every push, which catches the R8 failures that fail
+loudly. The one that does not fail loudly needs a screen:
+
+```
+keytool -genkeypair -keystore verify.jks -alias verify -keyalg RSA     -validity 30 -dname "CN=Release Verification"
+NM_KEYSTORE_PATH=$PWD/verify.jks NM_KEYSTORE_PASSWORD=... NM_KEY_ALIAS=verify     NM_KEY_PASSWORD=... ./gradlew assembleRelease
+./deploy.sh -d 192.168.2.80:5555 --release
+```
+
+That keystore is a throwaway for driving the app on hardware and is never the
+upload key. Open a page, enter focus mode, and check the tracker count in the
+menu: those three together prove the injected scripts, the JavaScript bridges
+and the request filter all survived minification.
+
 ## Before promoting to production
 
 - Every function reachable with six keycodes on real hardware

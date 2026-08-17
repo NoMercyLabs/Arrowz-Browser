@@ -27,6 +27,16 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
+      # The debug APK is not the thing anybody installs. R8 runs only on the
+      # release variant, and a build that had never been produced here shipped
+      # an artifact that displayed a black screen with no crash and no log line.
+      # Building it every time catches the R8 failures that are failures --
+      # missing keep rules, shrinking errors. It cannot catch one that only
+      # appears on screen, which is why release builds are also driven on
+      # hardware before a tag.
+      - name: Build release APK
+        run: ./gradlew assembleRelease
+
       - name: Unit tests
         run: ./gradlew test
 
