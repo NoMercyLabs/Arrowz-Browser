@@ -62,6 +62,9 @@
     <string name="menu_close_tab">Close this tab</string>
     <string name="menu_about">About Arrowz Browser</string>
     <string name="menu_about_version">Version %1$s</string>
+    <string name="menu_about_what">A web browser for the television, built for a remote.</string>
+    <string name="menu_about_licence">MIT licensed. Copyright 2026 NoMercy Labs.</string>
+    <string name="menu_about_privacy_line">Nothing about your browsing is sent anywhere.</string>
     <string name="menu_about_privacy">Privacy policy</string>
     <string name="menu_about_licences">Open source licences</string>
     <string name="menu_search_engine">Search engine</string>

@@ -64,6 +64,9 @@
     <string name="menu_close_tab">Dit tabblad sluiten</string>
     <string name="menu_about">Over Arrowz Browser</string>
     <string name="menu_about_version">Versie %1$s</string>
+    <string name="menu_about_what">Een webbrowser voor de televisie, gemaakt voor een afstandsbediening.</string>
+    <string name="menu_about_licence">MIT-licentie. Copyright 2026 NoMercy Labs.</string>
+    <string name="menu_about_privacy_line">Er wordt niets over je surfgedrag verstuurd.</string>
     <string name="menu_about_privacy">Privacybeleid</string>
     <string name="menu_about_licences">Opensourcelicenties</string>
     <string name="menu_search_engine">Zoekmachine</string>

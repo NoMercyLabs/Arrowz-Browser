@@ -5,6 +5,12 @@
 
 package com.nomercylabs.arrowz.chrome
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -419,15 +425,13 @@ fun MenuOverlay(
                     }
                 }
 
-                MenuSection.About -> {
-                    ListRow(
-                        title = stringResource(R.string.app_name),
-                        subtitle = stringResource(R.string.menu_about_version, versionName),
-                        selected = false,
-                        onClick = {},
-                        requestInitialFocus = true,
-                    )
-                }
+                // Not a row. A row is something to press, and this one did
+                // nothing when pressed, which is the exact failure the rest of
+                // this interface is built to avoid. The mark says which app this
+                // is better than its name repeated in a list would, so the
+                // section is a page about the product rather than a menu of one
+                // entry that goes nowhere.
+                MenuSection.About -> AboutPanel(versionName)
             }
         }
     }
@@ -454,5 +458,53 @@ private fun permissionSubtitle(permission: SitePermission): String {
 }
 
 private const val ALLOW: String = "allow"
+
+/**
+ * What the About section draws.
+ *
+ * Deliberately holds no focus. There is nothing here to activate, and a stop the
+ * ring can sit on while doing nothing is worse than no stop at all; BACK is the
+ * way out and the heading already says so.
+ */
+@Composable
+private fun AboutPanel(versionName: String) {
+    val palette: Palette = LocalPalette.current
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Tokens.SpaceMd),
+    ) {
+        // The lockup the launcher tile carries, so the app names itself the way
+        // it does everywhere else rather than as a line of body text.
+        Image(
+            painter = painterResource(R.drawable.banner),
+            contentDescription = null,
+            modifier = Modifier
+                .width(MARK_WIDTH)
+                .clip(RoundedCornerShape(Tokens.Radius)),
+        )
+
+        BasicText(
+            text = stringResource(R.string.menu_about_version, versionName),
+            style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextBody),
+        )
+        BasicText(
+            text = stringResource(R.string.menu_about_what),
+            style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextBody),
+        )
+        BasicText(
+            text = stringResource(R.string.menu_about_privacy_line),
+            style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextBody),
+        )
+        BasicText(
+            text = stringResource(R.string.menu_about_licence),
+            style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextSmall),
+        )
+    }
+}
+
+/** Wide enough to read the wordmark from a sofa, narrow enough that it is a
+ *  mark on a page rather than the page. */
+private val MARK_WIDTH = 420.dp
 
 private const val SCRIM_ALPHA: Float = 0.97f
