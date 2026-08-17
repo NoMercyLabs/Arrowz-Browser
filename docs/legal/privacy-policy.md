@@ -13,19 +13,23 @@ The rest of this document explains the parts that are less obvious, because a br
 
 ## What is stored on your device
 
-Bookmarks, browsing history, open tabs, your settings, cookies and site data from pages you visit, and per site permissions such as camera or location decisions.
+Bookmarks, browsing history, open tabs, your settings, cookies and site data from pages you visit, per site permissions such as camera or location decisions, and the icon each site declares so its home screen tile has a picture on it.
 
 All of it is stored locally. None of it is transmitted anywhere by the app. Uninstalling removes it. Clearing browsing data in settings removes it sooner.
 
 ## Network requests the app itself makes
 
-There is exactly one, and it does not go to us.
+There are two, and neither goes to us.
 
 **Tracker and ad filter lists.** About once a week the app downloads filter lists from their public upstream sources: the uBlock Origin uAssets repository at `raw.githubusercontent.com`, and the EasyList project at `easylist.to`. Those providers can see your device's IP address and the fact that a filter list was requested, the same as any other download from them. They receive nothing else, and nothing about the pages you visit.
 
 Those requests are made to the providers directly and are deliberately not routed through any NoMercy Labs server. A proxy would be able to see which televisions asked and when, which is exactly the kind of collection this browser is built to make impossible rather than merely promise not to do.
 
-A smaller list authored by us ships inside the app, so blocking works on the very first page you open rather than after the first successful download. Turning tracker blocking off in the menu also stops the downloads, and the app then makes no request of its own at all.
+A smaller list authored by us ships inside the app, so blocking works on the very first page you open rather than after the first successful download. Turning tracker blocking off in the menu also stops the downloads.
+
+**The picture on a home screen tile.** When you open a site, the page is asked which icon it declares, and that icon is downloaded once and kept on the device so the tile has something better than two letters on it. The request goes to whatever address the page names, which is usually the site itself and sometimes the content network it uses. That host sees your IP address and the fact that its icon was requested, which it would have seen anyway while the page loaded.
+
+It happens once per site, not once per visit: a site whose icon is already stored is never asked again, and a site that offers nothing we can draw is recorded as having been asked so it is not retried either. Nothing about which sites you visited leaves the device, and clearing browsing data deletes the stored pictures along with the rest.
 
 ## Network requests caused by browsing
 
