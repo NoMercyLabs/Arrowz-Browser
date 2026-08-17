@@ -22,6 +22,19 @@ data class CursorConfig(
     val accelerationPxPerSecondSquared: Float = 2600f,
     /** Capped, or a long hold crosses the screen faster than the eye follows. */
     val maxSpeedPxPerSecond: Float = 2400f,
+    /**
+     * What a tap moves, when no frame ran while the key was down.
+     *
+     * A tap is a key-down and a key-up milliseconds apart, and the pointer only
+     * moves on a frame in between. Measured on the 8000: five taps of UP moved
+     * the cursor from y=540 to y=540, and only a hold moved it at all. A press
+     * that does nothing is the failure this whole interface is built to avoid,
+     * and it was sitting on the most-used key in cursor mode.
+     *
+     * One ramp delay at the start speed, so a tap nudges by exactly what a hold
+     * would have covered before it began accelerating.
+     */
+    val tapNudgePx: Float = 92f,
 )
 
 data class CursorPosition(val x: Float, val y: Float)
@@ -50,6 +63,9 @@ class CursorState(
     private var heldSinceMillis: Long = 0L
     private var lastFrameMillis: Long = 0L
 
+    /** Whether any frame advanced the pointer while this press was down. */
+    private var movedWhileHeld: Boolean = false
+
     val isMoving: Boolean get() = held.isNotEmpty()
 
     fun centreIn(width: Int, height: Int) {
@@ -62,6 +78,7 @@ class CursorState(
         if (held.isEmpty()) {
             heldSinceMillis = nowMillis
             lastFrameMillis = nowMillis
+            movedWhileHeld = false
         }
         held.add(key)
     }
@@ -70,18 +87,36 @@ class CursorState(
      * Releasing resets the ramp, so the next press starts precise again rather
      * than inheriting the speed the previous hold reached.
      */
-    fun release(key: RemoteKey) {
-        held.remove(key)
+    fun release(key: RemoteKey, width: Int = 0, height: Int = 0) {
+        val wasHeld: Boolean = held.remove(key)
+
+        // A tap that outran the frame clock still has to move something.
+        if (wasHeld && !movedWhileHeld) nudge(key, width, height)
+
         if (held.isEmpty()) {
             heldSinceMillis = 0L
             lastFrameMillis = 0L
+            movedWhileHeld = false
         }
+    }
+
+    private fun nudge(key: RemoteKey, width: Int, height: Int) {
+        when (key) {
+            RemoteKey.Left -> x -= config.tapNudgePx
+            RemoteKey.Right -> x += config.tapNudgePx
+            RemoteKey.Up -> y -= config.tapNudgePx
+            RemoteKey.Down -> y += config.tapNudgePx
+            else -> return
+        }
+        if (width > 0) x = x.coerceIn(0f, (width - 1).toFloat())
+        if (height > 0) y = y.coerceIn(0f, (height - 1).toFloat())
     }
 
     fun releaseAll() {
         held.clear()
         heldSinceMillis = 0L
         lastFrameMillis = 0L
+        movedWhileHeld = false
     }
 
     /**
@@ -99,6 +134,8 @@ class CursorState(
 
         val speed: Float = speedAt(nowMillis)
         val step: Float = speed * deltaSeconds
+
+        if (step > 0f) movedWhileHeld = true
 
         if (held.contains(RemoteKey.Left)) x -= step
         if (held.contains(RemoteKey.Right)) x += step

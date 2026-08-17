@@ -146,4 +146,40 @@ class CursorStateTest {
     private companion object {
         const val TOLERANCE: Float = 0.01f
     }
+
+    // Measured on the 8000: five taps of UP moved the cursor from y=540 to
+    // y=540. A tap is a key-down and a key-up milliseconds apart and the
+    // pointer only moves on a frame in between, so no frame ever ran. A press
+    // that does nothing is the failure this interface exists to avoid.
+    @Test
+    fun aTapMovesThePointerEvenWhenNoFrameRan() {
+        val cursor = CursorState(CursorConfig(), initialX = 500f, initialY = 540f)
+
+        cursor.press(RemoteKey.Up, nowMillis = 0)
+        cursor.release(RemoteKey.Up, width = 1920, height = 1080)
+
+        assertTrue("a tap must move the pointer", cursor.y < 540f)
+    }
+
+    @Test
+    fun aHoldThatAlreadyMovedIsNotNudgedAgainOnRelease() {
+        val cursor = CursorState(CursorConfig(), initialX = 500f, initialY = 540f)
+
+        cursor.press(RemoteKey.Up, nowMillis = 0)
+        cursor.advance(nowMillis = 200, width = 1920, height = 1080)
+        val afterFrames: Float = cursor.y
+        cursor.release(RemoteKey.Up, width = 1920, height = 1080)
+
+        assertEquals(afterFrames, cursor.y, 0.01f)
+    }
+
+    @Test
+    fun aTapCannotPushThePointerOffScreen() {
+        val cursor = CursorState(CursorConfig(), initialX = 500f, initialY = 4f)
+
+        cursor.press(RemoteKey.Up, nowMillis = 0)
+        cursor.release(RemoteKey.Up, width = 1920, height = 1080)
+
+        assertEquals(0f, cursor.y, 0.01f)
+    }
 }

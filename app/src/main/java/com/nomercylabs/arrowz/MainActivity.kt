@@ -1412,7 +1412,9 @@ class MainActivity : ComponentActivity() {
             true
         }
         is Command.StopMove -> {
-            cursor.release(command.key)
+            // The viewport, so a tap's nudge is clamped on screen exactly as a
+            // held move is.
+            cursor.release(command.key, pageContainer.width, pageContainer.height)
             cursorMoving = cursor.isMoving
             true
         }
