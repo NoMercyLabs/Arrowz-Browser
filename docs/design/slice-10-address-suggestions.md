@@ -10,7 +10,7 @@ gets abandoned rather than finished.
 Ranking lives in `data/Suggestions.kt`, pure and tested without a device,
 because the ordering rules are where this succeeds or fails.
 
-A favourite outranks a visit that matches equally well, a host the query is a
+A favorite outranks a visit that matches equally well, a host the query is a
 prefix of outranks a title that merely contains the same letters, and the same
 site kept and visited is one row rather than two. Whatever was typed always
 stays reachable as a search on the last row, even when everything above it is a
@@ -22,7 +22,7 @@ bar to check where you are should not bury the page under a list.
 
 ## What was learned on the 8010
 
-Two behaviours here are platform facts rather than choices, and both cost a
+Two behaviors here are platform facts rather than choices, and both cost a
 build to find.
 
 **The leanback IME reports no IME inset.** `WindowInsets.isImeVisible` never
@@ -45,7 +45,7 @@ on, so the field names its `down` target rather than searching for one.
 ## The rest of the chrome
 
 **Voice.** A mic beside the address field, `RecognizerIntent`, result navigated
-directly. The recogniser is part of the Google app and a stripped television
+directly. The recognizer is part of the Google app and a stripped television
 build may not carry it, so its absence is reported rather than crashing on a
 missing activity. This is the fastest way into the browser on a remote and it
 sidesteps the leanback keyboard entirely.
@@ -57,10 +57,10 @@ next is worth doing. Leaving the surface clears the highlights.
 
 **Kept pages and recently visited.** One screen with different rows, because a
 list is what a search by eye needs; tiles are for the handful of places worth
-recognising by colour. History is now real pages rather than the per-origin
+recognizing by color. History is now real pages rather than the per-origin
 counters the home grid uses, which meant a second table and a schema version.
 That upgrade adds tables and rebuilds nothing — somebody's television already
-holds their favourites.
+holds their favorites.
 
 **Site permissions.** Camera, microphone and location are asked once per origin
 and the answer is remembered. Blocking is the first row and the one focus lands

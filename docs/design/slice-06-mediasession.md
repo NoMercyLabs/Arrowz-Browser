@@ -16,7 +16,7 @@ Chrome and Brave implement that layer themselves. This slice is that layer.
 
 **The observer** watches every `<audio>` and `<video>` for `play`, `pause`, `ended` and `timeupdate`, and synthesises metadata from `document.title` and the page's `og:image`.
 
-Most of the web never calls the API, so the observer is the path that runs most of the time. Building it as an afterthought would mean the feature works on the handful of sites that already had good behaviour and nowhere else. It is designed as the primary path and the API is treated as an enrichment.
+Most of the web never calls the API, so the observer is the path that runs most of the time. Building it as an afterthought would mean the feature works on the handful of sites that already had good behavior and nowhere else. It is designed as the primary path and the API is treated as an enrichment.
 
 ## Injection has to survive strict sites
 
@@ -38,7 +38,7 @@ Chromium takes audio focus for media the page plays, through its own `AudioFocus
 
 So `AudioFocusManager` was deleted rather than kept unused. A class that must never be called is worse than no class, and the reason belongs here where the next person will look.
 
-The behaviour we wanted is present: `dumpsys audio` shows the browser holding `GAIN` with `USAGE_MEDIA` while a page plays, requested by Chromium on our behalf.
+The behavior we wanted is present: `dumpsys audio` shows the browser holding `GAIN` with `USAGE_MEDIA` while a page plays, requested by Chromium on our behalf.
 
 ## What audio focus would have been for
 

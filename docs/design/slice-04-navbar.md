@@ -56,7 +56,7 @@ Voice input lands with the rest of text entry later. The bar is usable without i
 
 ## Observed on hardware
 
-**Closing the bar takes two BACK presses while the keyboard is up**, and that is correct rather than a defect. The IME consumes the first press to dismiss itself, exactly as it does in every Android app, and the second reaches us as `CloseChrome`. Making the bar swallow the first press would mean fighting the platform for a behaviour users already expect.
+**Closing the bar takes two BACK presses while the keyboard is up**, and that is correct rather than a defect. The IME consumes the first press to dismiss itself, exactly as it does in every Android app, and the second reaches us as `CloseChrome`. Making the bar swallow the first press would mean fighting the platform for a behavior users already expect.
 
 **The reveal needs the pointer clamped at the top, not merely near it.** Holding UP until the cursor stops at the edge and pressing once more is the gesture; a hold that ends at seventy pixels leaves the pointer outside the band and the press correctly moves the cursor instead.
 

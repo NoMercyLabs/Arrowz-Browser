@@ -19,9 +19,11 @@ All of it is stored locally. None of it is transmitted anywhere by the app. Unin
 
 ## Network requests the app itself makes
 
-There is one, and it does not go to us.
+In the current build there are none at all. The app makes no request of its own to anywhere.
 
-**Tracker and ad filter lists.** The app downloads filter lists from their public upstream sources, currently the uBlock Origin uAssets repository and the EasyList project. Those providers can see your device's IP address and the fact that a filter list was requested, the same as any other download from them. They receive nothing else, and they receive nothing about the pages you visit. You can turn list updating off in settings, in which case the app uses the copy bundled with the version you installed and makes no requests at all.
+There will be one, and it will not go to us.
+
+**Tracker and ad filter lists.** Once list-based blocking ships, the app downloads filter lists from their public upstream sources, currently the uBlock Origin uAssets repository and the EasyList project. Those providers can see your device's IP address and the fact that a filter list was requested, the same as any other download from them. They receive nothing else, and they receive nothing about the pages you visit. You can turn list updating off in settings, in which case the app uses the copy bundled with the version you installed and makes no requests at all.
 
 ## Network requests caused by browsing
 
@@ -33,7 +35,7 @@ These are the ordinary consequences of using a browser, listed because they are 
 
 **Voice input**, if you use it, is handled by the speech recognition service built into your device, which on most Android TV hardware is provided by Google. The audio goes to that service under its own privacy policy, not to us. The app receives only the resulting text.
 
-**Protected video.** Playing DRM protected content requires your device to obtain a licence. That process is performed by Android's own media DRM component together with the licence server operated by the site you are watching, and it can involve a device specific identifier. This happens below the app and we neither see nor control it. It only occurs when you play protected content.
+**Protected video.** Playing DRM protected content requires your device to obtain a license. That process is performed by Android's own media DRM component together with the license server operated by the site you are watching, and it can involve a device specific identifier. This happens below the app and we neither see nor control it. It only occurs when you play protected content.
 
 ## Safe Browsing is turned off
 

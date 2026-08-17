@@ -36,10 +36,10 @@ Protected video captures black through `screencap`, so DRM playback is never ver
 
 `WebView` is multiprocess here, so a renderer killed under memory pressure crashes the whole app unless `onRenderProcessGone` is handled. Tab state must be captured continuously rather than at suspend time, because a dead process gives no warning.
 
-Focus ring values live only in `ui/Tokens.kt`, with the colour taken from the active `Palette`. Slice 14 injects the same values into pages as CSS.
+Focus ring values live only in `ui/Tokens.kt`, with the color taken from the active `Palette`. Slice 14 injects the same values into pages as CSS.
 
 Injected scripts and styles go through `evaluateJavascript` at document start and the CSSOM. Appended tags are blocked by strict CSP sites.
 
 ## Theming
 
-Light and dark palettes resolve from the system setting through `TvTheme`, with `ThemeMode` allowing an explicit override later. The window theme is themed separately in `values` and `values-night` so the launch transition does not flash the wrong colour, and `android:isLightTheme` is set in the `-v29` variants because WebView reads it to decide what `prefers-color-scheme` reports to a page.
+Light and dark palettes resolve from the system setting through `TvTheme`, with `ThemeMode` allowing an explicit override later. The window theme is themed separately in `values` and `values-night` so the launch transition does not flash the wrong color, and `android:isLightTheme` is set in the `-v29` variants because WebView reads it to decide what `prefers-color-scheme` reports to a page.

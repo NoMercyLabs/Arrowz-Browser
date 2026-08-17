@@ -23,7 +23,7 @@ Nothing in the dispatcher touches Android. It has no `WebView`, no `Context`, no
 
 The plan said to use `OnBackPressedCallback` and opt into predictive back. Working through it, that is wrong here.
 
-BACK carries four behaviours in this app, and one of them is a long press. The predictive back APIs deliver an invocation, not a duration, so there is no way to distinguish a short press from a long one through `OnBackInvokedCallback`. Opting in would make the menu unreachable.
+BACK carries four behaviors in this app, and one of them is a long press. The predictive back APIs deliver an invocation, not a duration, so there is no way to distinguish a short press from a long one through `OnBackInvokedCallback`. Opting in would make the menu unreachable.
 
 So this app deliberately does **not** enable `android:enableOnBackInvokedCallback`, and handles BACK through the documented long-press path instead: `KeyEvent.startTracking()` on the initial `ACTION_DOWN`, then `onKeyLongPress` for the long press and the tracked `ACTION_UP` for the short one.
 

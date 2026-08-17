@@ -58,14 +58,14 @@ The supplied view may be a `SurfaceView` backing a secure decode path. Applying 
 
 Third-party pages proved unusable as fixtures: consent walls block the click, and a bare media file renders black with no visible control. So the repo now carries `app/src/debug/assets/mediatest.html`, served over a real https origin by `WebViewAssetLoader` and present only in debug builds.
 
-This is infrastructure rather than a workaround. Slice 6's media session and slice 7's picture-in-picture need to drive the same behaviour from a page whose markup we control, and no third-party site is a stable fixture.
+This is infrastructure rather than a workaround. Slice 6's media session and slice 7's picture-in-picture need to drive the same behavior from a page whose markup we control, and no third-party site is a stable fixture.
 
 ## Known real-page fixtures
 
 `http://192.168.2.201:4321/` on the LAN, Stoney's Mom design kit. Two reasons it is worth keeping:
 
 - it is a cleartext page, so it exercises the `usesCleartextTraffic` decision rather than only the https path
-- its layout is the spatial-navigation problem in miniature: a dense control row at the top right against wide buttons at the bottom centre, which is exactly the case where nearest-rect search jumps sideways and the beam test does not
+- its layout is the spatial-navigation problem in miniature: a dense control row at the top right against wide buttons at the bottom center, which is exactly the case where nearest-rect search jumps sideways and the beam test does not
 
 ## Acceptance
 

@@ -5,13 +5,13 @@ Published by NoMercy Labs. Last updated 16 August 2026.
 
 ## What this is
 
-NoMercy Browser is a web browser you install and run on your own device. It is free, it is open source under the MIT licence, and using it does not create an account or any ongoing relationship with us.
+NoMercy Browser is a web browser you install and run on your own device. It is free, it is open source under the MIT license, and using it does not create an account or any ongoing relationship with us.
 
 By installing or using the app you accept these terms. If you do not accept them, do not install it.
 
 ## The software is provided as is
 
-The MIT licence governs the software itself, and it disclaims all warranties. In plain terms: we make no promise that the app is free of defects, that it will work with any particular website, or that it will remain available. You use it at your own risk.
+The MIT license governs the software itself, and it disclaims all warranties. In plain terms: we make no promise that the app is free of defects, that it will work with any particular website, or that it will remain available. You use it at your own risk.
 
 Nothing here excludes liability that cannot lawfully be excluded, including for death or personal injury caused by negligence, or for fraud.
 
@@ -33,7 +33,7 @@ Some services refuse to serve video to browsers, or restrict quality when they d
 
 ## Trade marks
 
-The MIT licence covers the code. It does not grant rights to the NoMercy or NoMercy Labs names, logos or other brand features. If you fork or redistribute the app, use your own branding.
+The MIT license covers the code. It does not grant rights to the NoMercy or NoMercy Labs names, logos or other brand features. If you fork or redistribute the app, use your own branding.
 
 ## Changes
 

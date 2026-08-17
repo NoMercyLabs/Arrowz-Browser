@@ -6,7 +6,7 @@ Every function must be reachable using six keys: the four directions, OK, and BA
 
 A change that puts any capability behind a seventh key will not be accepted, however convenient that key is on the remote you happen to own. Richer remotes may add shortcuts to things that are already reachable, never the only route to them.
 
-## How work is organised
+## How work is organized
 
 Work lands in slices. Each slice opens with a design note in `docs/design/` covering the interfaces, the state transitions, the failure modes, and what the decision forces elsewhere in the app. The note is written and read before the code is.
 
