@@ -77,3 +77,37 @@ document rather than two that drift.
 - **Ads:** none, declared as containing no ads.
 - **In-app purchases:** none.
 - **Track policy:** `release.yml` publishes to internal testing on a tag. Promotion to production stays a manual decision in the console, because a browser reaching every Android TV device is not something a tag push should do on its own.
+
+## Release notes, 0.1.1
+
+Play caps each language at 500 characters. These are 483 and 495, so a sentence
+can be added to either without a rewrite. Both languages say the same things in
+the same order, because a translation that reorders the argument reads as a
+different app.
+
+The last line is deliberate: this goes to internal testing, and telling a tester
+what the release is for gets better reports than a feature list does.
+
+### en-US
+
+```
+Arrowz Browser is a small, fast, private browser for Android TV.
+
+Everything is reachable with four arrows, OK and BACK. There are no analytics, no accounts, and no request ever reaches us. Trackers are blocked from the first page using public filter lists.
+
+Video behaves the way a browser should: real fullscreen, playback on the TV's own now playing, and audio that keeps going when you leave the app.
+
+This first release is for testing. Please report anything that does not work.
+```
+
+### nl-NL
+
+```
+Arrowz Browser is een kleine, snelle en privacyvriendelijke browser voor Android TV.
+
+Alles is bereikbaar met vier pijltjes, OK en TERUG. Geen analytics, geen accounts, en er gaat nooit een verzoek naar ons. Trackers worden vanaf de eerste pagina geblokkeerd met openbare filterlijsten.
+
+Video werkt zoals het hoort: echt volledig scherm, weergave in het nu speelt van je tv, en geluid dat doorloopt als je de app verlaat.
+
+Deze eerste versie is om te testen. Laat het weten als iets niet werkt.
+```
