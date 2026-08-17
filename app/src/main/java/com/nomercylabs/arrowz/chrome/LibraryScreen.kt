@@ -94,6 +94,7 @@ fun LibraryScreen(
                             IconButton(
                                 contentDescription = removeDescription,
                                 onClick = { remove(row) },
+                                radius = Tokens.RadiusInside,
                             ) { tint -> NavIcons.Close(tint) }
                         }
                     },

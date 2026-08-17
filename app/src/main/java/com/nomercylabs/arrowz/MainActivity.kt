@@ -106,6 +106,8 @@ import androidx.core.view.WindowInsetsCompat
 import com.nomercylabs.arrowz.data.Bookmark
 import com.nomercylabs.arrowz.data.BrowserStore
 import com.nomercylabs.arrowz.data.HomeContent
+import com.nomercylabs.arrowz.data.SiteIconBridge
+import com.nomercylabs.arrowz.data.SiteIcons
 import com.nomercylabs.arrowz.data.SqliteBrowserStore
 import com.nomercylabs.arrowz.data.Suggestion
 import com.nomercylabs.arrowz.data.Suggestions
@@ -263,6 +265,7 @@ class MainActivity : ComponentActivity() {
 
     /** Writes and reads happen here; the results are posted back. */
     private val storeThread = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private lateinit var siteIcons: SiteIcons
 
     private val host: WebViewHost? get() = registry.active?.page as? WebViewHost
 
@@ -300,6 +303,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         store = SqliteBrowserStore(applicationContext)
+        siteIcons = SiteIcons(java.io.File(filesDir, ICON_DIRECTORY))
         refreshHome()
         loadThemeMode()
         loadDesktopOrigins()
@@ -376,6 +380,7 @@ class MainActivity : ComponentActivity() {
                     onToggleFavourite = { toggleFavourite() },
                     isFavourite = isCurrentPageFavourite(),
                     showHome = registry.active?.isHome ?: true,
+                    iconFor = { origin -> siteIcons.iconFor(origin)?.absolutePath },
                     homeTiles = homeTiles,
                     onOpenTile = { url -> openFromHome(url) },
                     suggestionsFor = { query ->
@@ -535,6 +540,7 @@ class MainActivity : ComponentActivity() {
                 readAsset("formbridge.js"),
                 readAsset("captions.js"),
                 readAsset("cosmetic.js"),
+                readAsset("siteicon.js"),
             ),
             assetLoader = if (BuildConfig.DEBUG) {
                 WebViewAssetLoader.Builder()
@@ -559,6 +565,18 @@ class MainActivity : ComponentActivity() {
         // Re-added on every rebuild: a renderer death takes the interfaces with
         // it, and a form bridge missing from a rebuilt tab fails as silence.
         page.formBridge?.let { bridge -> page.addBridge("NmForms", bridge) }
+
+        // The tile's picture. Fetched off the main thread and only when we have
+        // nothing for that origin yet, so a site visited every day costs one
+        // request in its life rather than one per visit.
+        page.addBridge(
+            "NmSiteIcon",
+            SiteIconBridge { origin, iconUrl ->
+                if (siteIcons.iconFor(origin) == null) {
+                    storeThread.execute { siteIcons.capture(origin, iconUrl) }
+                }
+            },
+        )
     }
 
     private fun loadFilterPreference() = storeThread.execute {
@@ -1634,6 +1652,11 @@ class MainActivity : ComponentActivity() {
          *  because the OS wanted 30MB back is the failure this whole slice is. */
         const val FILTER_DIRECTORY: String = "filters"
 
+        /** Beside the filters, for the same reason: filesDir survives a cache
+         *  wipe, and a grid that loses its pictures on a low-storage night
+         *  looks broken rather than tidy. */
+        const val ICON_DIRECTORY: String = "icons"
+
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
 
@@ -1662,6 +1685,7 @@ class MainActivity : ComponentActivity() {
 private fun BrowserScreen(
     pageContainer: FrameLayout,
     showHome: Boolean,
+    iconFor: (String) -> String?,
     homeTiles: List<Tile>,
     onOpenTile: (String) -> Unit,
     suggestionsFor: (String) -> List<Suggestion>,
@@ -1843,6 +1867,7 @@ private fun BrowserScreen(
                     tiles = homeTiles,
                     onOpen = onOpenTile,
                     firstTileFocusRequester = firstTile,
+                    iconFor = iconFor,
                 )
             }
         }

@@ -7,6 +7,12 @@ package com.nomercylabs.arrowz.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -59,6 +65,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -186,6 +193,9 @@ fun IconButton(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** [Tokens.RadiusInside] where this sits inside another rounded surface, so
+     *  the two corners stay parallel instead of sharing a radius. */
+    radius: Dp = Tokens.Radius,
     glyph: @Composable (tint: Color) -> Unit,
 ) {
     val palette: Palette = LocalPalette.current
@@ -197,9 +207,9 @@ fun IconButton(
         modifier = modifier
             .size(BUTTON_SIZE)
             .onFocusChanged { focused = it.isFocused }
-            .tvFocusable(focused, RoundedCornerShape(Tokens.Radius))
-            .raised(RoundedCornerShape(Tokens.Radius))
-            .background(focusFill(focused), RoundedCornerShape(Tokens.Radius))
+            .tvFocusable(focused, RoundedCornerShape(radius))
+            .raised(RoundedCornerShape(radius))
+            .background(focusFill(focused), RoundedCornerShape(radius))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             // A glyph has no text for a reader to fall back on, so without the
             // role this is an unlabelled image rather than something to press.
@@ -464,6 +474,10 @@ fun SiteTile(
     modifier: Modifier = Modifier,
     requestInitialFocus: Boolean = false,
     externalFocusRequester: FocusRequester? = null,
+    /** The site's own mark, reported by a page on an earlier visit. Null until
+     *  then, and null forever for a site that declares none, which is when the
+     *  letters are the right answer rather than a placeholder. */
+    iconPath: String? = null,
 ) {
     val palette: Palette = LocalPalette.current
     var focused: Boolean by remember { mutableStateOf(false) }
@@ -471,6 +485,9 @@ fun SiteTile(
     val ownFocusRequester = remember { FocusRequester() }
     val focusRequester: FocusRequester = externalFocusRequester ?: ownFocusRequester
     val label: String = title.ifBlank { origin }
+    val icon: ImageBitmap? = remember(iconPath) {
+        iconPath?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
+    }
 
     LaunchedEffect(requestInitialFocus) {
         if (requestInitialFocus) focusRequester.requestFocus()
@@ -516,17 +533,31 @@ fun SiteTile(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            BasicText(
-                text = origin.take(INITIALS).uppercase(),
-                style = TextStyle(
-                    color = Color.White,
-                    fontSize = Tokens.TextDisplay,
-                    fontWeight = FontWeight.Bold,
-                    // Two letters is what tells sites apart. One initial makes
-                    // every g-domain the same tile from three metres.
-                    letterSpacing = TILE_LETTER_SPACING,
-                ),
-            )
+            if (icon != null) {
+                // Fit, not crop. A wide og:image and a square touch icon both
+                // arrive here, and cropping a share card to a square takes the
+                // half without the logo in it as often as not.
+                Image(
+                    bitmap = icon,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(Tokens.SpaceMd),
+                )
+            } else {
+                BasicText(
+                    text = origin.take(INITIALS).uppercase(),
+                    style = TextStyle(
+                        color = Color.White,
+                        fontSize = Tokens.TextDisplay,
+                        fontWeight = FontWeight.Bold,
+                        // Two letters is what tells sites apart. One initial
+                        // makes every g-domain the same tile from three metres.
+                        letterSpacing = TILE_LETTER_SPACING,
+                    ),
+                )
+            }
             if (isFavourite) {
                 Box(
                     modifier = Modifier

@@ -49,6 +49,10 @@ fun HomeGrid(
      * until OK had been pressed first.
      */
     firstTileFocusRequester: FocusRequester,
+    /** Reads a file already on disk. Deliberately not a fetch: the grid draws
+     *  the moment it appears and cannot wait on the network, which is the same
+     *  reason a tile drew letters in the first place. */
+    iconFor: (String) -> String? = { null },
 ) {
     val palette: Palette = LocalPalette.current
 
@@ -92,6 +96,7 @@ fun HomeGrid(
                     title = tile.title,
                     origin = tile.origin,
                     isFavourite = tile.isFavourite,
+                    iconPath = iconFor(tile.origin),
                     // The bar above owns focus when the screen appears, so this
                     // is a target to be sent to rather than one that grabs.
                     externalFocusRequester = if (tile === tiles.first()) firstTileFocusRequester else null,

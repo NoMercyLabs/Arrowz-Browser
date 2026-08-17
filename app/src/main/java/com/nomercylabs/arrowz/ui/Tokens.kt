@@ -167,6 +167,17 @@ object Tokens {
      */
     val Radius: Dp = 10.dp
 
+    /**
+     * For a control sitting inside another rounded surface.
+     *
+     * Two concentric shapes must not share a radius. The remove button in a
+     * library row is inset 4dp inside a 10dp row and carried 10dp of its own,
+     * so its corner was rounder than the corner containing it and the pair read
+     * as a mistake. The inner radius is the outer one less the gap between
+     * them, which is what makes the two curves parallel.
+     */
+    val RadiusInside: Dp = Radius - SpaceXs
+
     /** Lifts a control off the page. Kept small: a television is viewed flat and
      *  a deep shadow reads as blur rather than as height. */
     val Elevation: Dp = 3.dp
