@@ -56,9 +56,16 @@ object SpatialSearch {
         viewport: Rect,
         canScroll: Boolean = true,
     ): SpatialResult {
-        val inDirection: List<Focusable> = candidates.filter { candidate ->
-            isBeyond(direction, source, candidate.rect)
-        }
+        val inDirection: List<Focusable> = candidates
+            .filter { candidate -> isBeyond(direction, source, candidate.rect) }
+            // With nowhere to scroll, an off-screen candidate can never be
+            // brought into view, so moving to it puts focus somewhere nobody can
+            // see. Measured on DuckDuckGo on the 8010, where a closed off-canvas
+            // drawer sat past the right edge of an unscrollable page: RIGHT from
+            // the header landed inside it and the remote appeared to stop
+            // working. Dropped rather than refused outright, so the next best
+            // candidate still gets the press.
+            .filter { candidate -> canScroll || !isOffscreen(candidate.rect, viewport) }
 
         if (inDirection.isEmpty()) {
             return if (canScroll) scrollFor(direction, viewport) else SpatialResult.LeavePage

@@ -263,6 +263,52 @@ class SpatialSearchTest {
         assertEquals("directlyBelow", move(result))
     }
 
+    // Measured on DuckDuckGo on the 8010: 56 collected elements, 10 of them on
+    // screen. The rest were a closed off-canvas drawer parked past the right
+    // edge of a page that cannot scroll sideways. RIGHT from the header landed
+    // in it, focus went where nobody could see it, and the remote appeared to
+    // stop working.
+    @Test
+    fun anUnreachableCandidateIsNotFocusedOnAPageThatCannotScrollToIt() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Right,
+            source = Rect(768, 45, 864, 71),
+            candidates = listOf(
+                at("closedDrawer", left = 982, top = 54, order = 1),
+                at("theMenuButton", left = 900, top = 45, order = 2, width = 32, height = 32),
+            ),
+            viewport = Rect(0, 0, 960, 540),
+            canScroll = false,
+        )
+        assertEquals("theMenuButton", move(result))
+    }
+
+    @Test
+    fun withNothingReachableTheChromeTakesTheKeyRatherThanFocusVanishing() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Right,
+            source = Rect(768, 45, 864, 71),
+            candidates = listOf(at("closedDrawer", left = 982, top = 54, order = 1)),
+            viewport = Rect(0, 0, 960, 540),
+            canScroll = false,
+        )
+        assertEquals(SpatialResult.LeavePage, result)
+    }
+
+    /** The exclusion must not fire where scrolling can still bring the winner
+     *  into view, or every page longer than a screen stops walking downward. */
+    @Test
+    fun anOffscreenCandidateOnAScrollablePageIsStillScrolledTo() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = Rect(0, 400, 200, 440),
+            candidates = listOf(at("belowTheFold", left = 0, top = 900, order = 1)),
+            viewport = Rect(0, 0, 960, 540),
+            canScroll = true,
+        )
+        assertTrue(result is SpatialResult.ScrollThenRetry)
+    }
+
     @Test
     fun upIsTheMirrorOfDown() {
         val result = SpatialSearch.search(

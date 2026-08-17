@@ -21,11 +21,36 @@
   var RING_ATTRIBUTE = 'data-nm-spatial-ring';
   var RING_CLASS = 'nm-spatial-focus-ring-9f3c';
 
+  /*
+   * What focus can land on: the native controls, every ARIA widget role, and
+   * labels.
+   *
+   * Labels are not padding in this list. A label is an activation target in
+   * HTML — clicking one activates the control it names — and sites use that to
+   * style a choice however they like while the real input is a hidden pixel.
+   * DuckDuckGo's own theme picker is exactly this: `<label for="setting_kae_b">`
+   * over an input too small to collect. Without labels those options cannot be
+   * reached at all, which is what "I should be able to select those" measured.
+   *
+   * The roles are the accessibility definition of a widget rather than a list
+   * grown one site at a time. What is deliberately NOT here is `cursor:pointer`:
+   * on that same settings page it matched 41 elements, nearly all of them
+   * decorative children inheriting the style from a parent.
+   */
   var FOCUSABLE = [
     'a[href]', 'button', 'input', 'select', 'textarea', 'summary', 'audio[controls]',
-    'video[controls]', '[tabindex]', '[role="button"]', '[role="link"]',
-    '[role="menuitem"]', '[role="tab"]', '[role="checkbox"]', '[contenteditable]'
+    'video[controls]', '[tabindex]', '[contenteditable]',
+    'label[for]', 'label:has(input)', 'label:has(select)', 'label:has(textarea)',
+    '[role="button"]', '[role="link"]', '[role="menuitem"]', '[role="tab"]',
+    '[role="checkbox"]', '[role="radio"]', '[role="switch"]', '[role="option"]',
+    '[role="menuitemradio"]', '[role="menuitemcheckbox"]', '[role="combobox"]',
+    '[role="slider"]', '[role="spinbutton"]', '[role="textbox"]',
+    '[role="searchbox"]', '[role="treeitem"]'
   ].join(',');
+
+  var FOCUSABLE_WITHOUT_HAS = FOCUSABLE.split(',')
+    .filter(function (selector) { return selector.indexOf(':has(') < 0; })
+    .join(',');
 
   var MIN_SIZE = 8;
   var identity = 0;
@@ -67,13 +92,44 @@
     }
   }
 
-  function isVisible(element) {
+  /**
+   * Whether focus can ever land on this and be seen.
+   *
+   * The style checks are the obvious half. The other half is position, and it
+   * is the one that matters most on a real site: a closed slide-out menu is
+   * parked off-canvas with a transform, fully styled, not hidden by display,
+   * visibility, opacity or aria-hidden, and every check above passes it.
+   *
+   * Measured on DuckDuckGo on the 8010: 56 collected elements, 10 of them on
+   * screen. RIGHT from the header jumped past the button that opens the drawer
+   * into the drawer itself, where focus sat invisible and every later press
+   * moved around inside something nobody could see.
+   *
+   * So the test is reachability. A fixed element never scrolls, so it has to be
+   * in the viewport now; anything else has to be inside the area the page can
+   * scroll to. Below the fold is reachable and stays; outside the document
+   * entirely is not.
+   */
+  function isVisible(element, fixed) {
     var style = window.getComputedStyle(element);
     if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') return false;
     if (element.disabled) return false;
     if (element.getAttribute('aria-hidden') === 'true') return false;
+
     var box = element.getBoundingClientRect();
-    return box.width >= MIN_SIZE && box.height >= MIN_SIZE;
+    if (box.width < MIN_SIZE || box.height < MIN_SIZE) return false;
+
+    if (fixed) {
+      return box.right > 0 && box.bottom > 0 &&
+        box.left < window.innerWidth && box.top < window.innerHeight;
+    }
+
+    var left = box.left + window.scrollX;
+    var top = box.top + window.scrollY;
+    var reachableWidth = Math.max(document.documentElement.scrollWidth, window.innerWidth);
+    var reachableHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight);
+    return left + box.width > 0 && top + box.height > 0 &&
+      left < reachableWidth && top < reachableHeight;
   }
 
   var SECTION_SELECTOR = 'ul,ol,nav,table,[role="list"],[role="row"],[role="tablist"],' +
@@ -103,19 +159,68 @@
     return false;
   }
 
+  /**
+   * `:has()` is a decade newer than this app's minimum Android version, and an
+   * unsupported selector makes `querySelectorAll` throw for the whole string
+   * rather than skip the part it dislikes. On a WebView that old, one bad
+   * selector would cost the page every focusable it has.
+   */
+  function focusableElements() {
+    try {
+      return document.querySelectorAll(FOCUSABLE);
+    } catch (error) {
+      return document.querySelectorAll(FOCUSABLE_WITHOUT_HAS);
+    }
+  }
+
+  /**
+   * Two labels naming the same control are two stops that do the same thing,
+   * and DuckDuckGo's theme picker has exactly that: a swatch and a caption,
+   * both pointing at one radio. The larger box is the one somebody is aiming
+   * at, so the smaller is dropped rather than costing a press to cross.
+   */
+  function dropDuplicateLabels(results, elements) {
+    var bestFor = {};
+    for (var index = 0; index < results.length; index++) {
+      var target = elements[results[index].elementIndex];
+      if (!target || target.tagName.toLowerCase() !== 'label') continue;
+      var names = target.getAttribute('for');
+      if (!names) continue;
+
+      var area = (results[index].right - results[index].left) *
+        (results[index].bottom - results[index].top);
+      if (!bestFor[names] || area > bestFor[names].area) {
+        bestFor[names] = { area: area, id: results[index].id };
+      }
+    }
+
+    return results.filter(function (entry) {
+      var target = elements[entry.elementIndex];
+      var names = target && target.tagName.toLowerCase() === 'label'
+        ? target.getAttribute('for')
+        : null;
+      return !names || bestFor[names].id === entry.id;
+    });
+  }
+
   function collect() {
-    var elements = document.querySelectorAll(FOCUSABLE);
+    var elements = focusableElements();
     var results = [];
     var order = 0;
     for (var index = 0; index < elements.length; index++) {
       var element = elements[index];
       order++;
-      if (!isVisible(element)) continue;
+      // Fixedness is needed before the visibility test rather than after it: a
+      // fixed element is judged against the viewport and everything else
+      // against the document.
+      var fixed = isFixed(element);
+      if (!isVisible(element, fixed)) continue;
       if (!element.__nmSpatialId) {
         element.__nmSpatialId = 'nm' + (++identity);
       }
       var box = element.getBoundingClientRect();
       results.push({
+        elementIndex: index,
         id: element.__nmSpatialId,
         left: Math.round(box.left),
         top: Math.round(box.top),
@@ -124,12 +229,12 @@
         order: order,
         // A sticky header and the body it floats over are their own groups, or
         // focus ping-pongs between them on every press.
-        fixed: isFixed(element),
+        fixed: fixed,
         section: sectionOf(element)
       });
     }
     return {
-      elements: results,
+      elements: dropDuplicateLabels(results, elements),
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
       scrollY: Math.round(window.scrollY),

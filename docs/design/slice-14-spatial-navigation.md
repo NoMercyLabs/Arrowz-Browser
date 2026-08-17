@@ -88,6 +88,47 @@ method, so the parser's tests run against the real implementation added as a
 test dependency. The alternative was rewriting the parser to avoid the stub,
 which would have meant testing something other than the code that ships.
 
+## What counts as reachable
+
+Two findings from driving the real page through the WebView's own devtools
+socket, which is a much better instrument than a copy of the site in a desktop
+browser: the desktop layout is not the layout the television gets, so measuring
+there answers a question nobody asked.
+
+On DuckDuckGo the page reported **56 focusable elements and 10 on screen**. The
+other 46 were a closed slide-out drawer, parked off-canvas by a transform. It is
+`position: fixed`, fully styled, and hidden by nothing our visibility test knew
+to look for — not `display`, not `visibility`, not `opacity`, not `aria-hidden`.
+RIGHT from the header jumped straight past the button that opens that drawer
+into the drawer itself, focus went where nobody could see it, and from there
+every press moved around inside something invisible. The remote appeared to have
+stopped working.
+
+So visibility now includes position. A fixed element never scrolls, so it has to
+be in the viewport now; anything else has to be inside the area the page can
+scroll to. Below the fold stays reachable, off-canvas does not. The search
+carries the same rule as a backstop: with nowhere to scroll, an off-screen
+candidate is dropped rather than focused, because it can never be brought into
+view. The previous guard only ran when the page *could* scroll, which is the
+wrong way round — a page that cannot scroll is exactly the one that cannot
+recover.
+
+The second finding was the opposite failure, missing elements rather than
+imaginary ones. DuckDuckGo's theme picker is six `<label for>` elements over
+radio inputs one pixel across, which is an ordinary way to build a choice: the
+label is the activation target in HTML and the input is only the state. We
+collected controls and not labels, so those options could not be reached at all.
+Labels are in the set now, along with the ARIA widget roles that were missing,
+and where two labels name the same control the larger box wins so a choice costs
+one press rather than two.
+
+What is deliberately not used as a signal is `cursor: pointer`. On that same
+settings page it matched 41 elements, nearly all of them decorative children
+inheriting the style from a parent. A rule that wrong is worse than the gap.
+
+After both changes the same page reports 44 collected and 20 on screen: fewer
+imaginary targets, twice the real ones.
+
 ## Section memory
 
 Android TV's remembered-child behaviour. A section is the nearest ancestor that
