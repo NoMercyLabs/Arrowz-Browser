@@ -101,3 +101,35 @@ field's own focus handling, which asks for focus back when editing ends.
 
 This is the highest-value thing outstanding in the browser: a form can be typed
 into and not submitted.
+
+## Real sites, which is where it still gets stuck
+
+Everything above was measured against one page written for the purpose. Driven
+against the open web on the 8000, with the same harness, it stops early:
+
+| Page | Focusables reported | Distinct reached | Presses | Dead presses |
+|---|---|---|---|---|
+| en.wikipedia.org article | 31 | 8 | 18 | 3 |
+| example.org | 1 | 8 | 29 | 6 |
+| duckduckgo.com results | 0 | 5 | 11 | 4 |
+
+A dead press is one that changed nothing, and it is the thing the whole input
+model exists to prevent, on a page of any size. A ratio against the focusable
+count is not the measure here: the number moves as a page settles, and one
+reading of the Wikipedia article said 1,668 while a later one said 31.
+
+On the Wikipedia article the column walk covers three header links and then
+stops, with the body of the article — where the links actually are — never
+reached. The obvious suspect was the beam group: a sticky header and the body
+under it are deliberately separate, and starting inside the header that rule is
+a trap. It is not the cause. The page reports **zero** fixed elements, so both
+are in the same group already, and a change letting the search fall through to
+the other group made no difference and was reverted rather than shipped
+unproven.
+
+The DuckDuckGo results page reporting zero focusables is its own thread and
+probably a timing one — the same page has reported 94 in earlier sessions.
+
+So the honest state: navigation is good on a form-shaped page and stalls after a
+handful of elements on a real article. That is the next thing to fix, and it is
+bigger than the three defects above it in this file.

@@ -209,6 +209,13 @@ async function main() {
    */
   const visited = new Set();
   const rows = [];
+  // What the question "can I reach everything without getting stuck" actually
+  // asks: how many presses moved, and how many did nothing. A ratio against the
+  // page's focusable count is meaningless on a real article -- Wikipedia reports
+  // over a thousand, and no sweep of eighty presses covers that -- but a press
+  // that moves nothing is a defect on any page, of any size.
+  let presses = 0;
+  let dead = 0;
 
   // Down the first column, then across each row it found. A form is a raster
   // and this is how somebody covers one: four single-line sweeps from the same
@@ -221,6 +228,7 @@ async function main() {
   visited.add(head);
   for (let step = 0; step < 40; step++) {
     press('down');
+    presses++;
     // Long enough for a scroll to settle. At 420ms a press that scrolled
     // the page read back as the element it started on, so the sweep ended
     // four rows into a page of twelve and reported the rest unreachable.
@@ -229,7 +237,7 @@ async function main() {
     // Only a press that changes nothing ends the sweep. Stopping on a
     // revisit ends it at the first element the page brings back into view
     // after a scroll, which is four rows into a page of twelve.
-    if (landed === head) break;
+    if (landed === head) { dead++; break; }
     if (column.length > 2 && landed === column[0]) break;
     head = landed;
     column.push(landed);
@@ -243,8 +251,10 @@ async function main() {
     const row = [await evaluateOn(socket, FOCUSED)];
     for (let step = 0; step < 12; step++) {
       press('right');
+      presses++;
       sleep(900);
       const landed = await evaluateOn(socket, FOCUSED);
+      if (landed === row[row.length - 1]) dead++;
       if (row.includes(landed)) break;
       row.push(landed);
       visited.add(landed);
@@ -259,7 +269,8 @@ async function main() {
     url,
     focusablesReported: total,
     distinctReached: visited.size,
-    coverage: `${visited.size}/${total}`,
+    presses,
+    deadPresses: dead,
     reached: [...visited].sort(),
     deadEnds,
     legs,
