@@ -75,10 +75,30 @@ method, so the parser's tests run against the real implementation added as a
 test dependency. The alternative was rewriting the parser to avoid the stub,
 which would have meant testing something other than the code that ships.
 
-## Not yet built
+## Section memory
 
-Section memory exists in the bridge but is only keyed by origin, so re-entering
-a grid restores the last element on that site rather than the last element in
-that row. Fixed elements are grouped apart from the scrolling body, which is the
-rule that stops focus ping-ponging between a sticky header and the article, but
-nothing yet detects a row or a card grid as its own section.
+Android TV's remembered-child behaviour. A section is the nearest ancestor that
+is a list, row, grid, nav, table, toolbar or menu, stamped once so it is
+identified the same way on every press. Leaving a grid and coming back returns
+to the item that was left; without it, every return costs as many presses as the
+original journey did.
+
+It applies only when focus *enters* a section it was not already in. Moving
+within one is ordinary geometry, and redirecting those presses would pin focus
+to the remembered item and make the row impossible to walk. A remembered element
+that has since left the page falls back to the search's winner, because sending
+focus at something that no longer exists is indistinguishable from the browser
+hanging. A new page forgets every section.
+
+## The plan's fixtures, all seven
+
+The plan named seven layouts this search has to be held to. All seven are now
+covered:
+
+1. The 20px-left in-beam candidate versus the 500px-right nearer one.
+2. Staggered card grids where rows do not align.
+3. A sticky header above a scrolling body, searched apart.
+4. A winner below the fold, asserting a scroll rather than a jump.
+5. Overlapping and nested focusables.
+6. A direction with no candidate, asserting scroll then chrome handoff.
+7. Leaving and re-entering a grid, asserting the remembered child.

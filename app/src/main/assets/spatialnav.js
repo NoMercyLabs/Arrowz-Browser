@@ -76,6 +76,26 @@
     return box.width >= MIN_SIZE && box.height >= MIN_SIZE;
   }
 
+  var SECTION_SELECTOR = 'ul,ol,nav,table,[role="list"],[role="row"],[role="tablist"],' +
+    '[role="menu"],[role="grid"],[role="listbox"],[role="toolbar"]';
+
+  /**
+   * The row or grid an element belongs to.
+   *
+   * Section memory is what makes a long grid usable: leaving it and coming back
+   * has to return to the item the viewer was on, not to the first one. That
+   * only works if a section is identified the same way on every press, so the
+   * container is stamped once and keeps its stamp.
+   */
+  function sectionOf(element) {
+    var container = element.closest ? element.closest(SECTION_SELECTOR) : null;
+    if (!container) return 'document';
+    if (!container.__nmSectionId) {
+      container.__nmSectionId = 'sec' + (++identity);
+    }
+    return container.__nmSectionId;
+  }
+
   function isFixed(element) {
     for (var node = element; node && node !== document.body; node = node.parentElement) {
       if (window.getComputedStyle(node).position === 'fixed') return true;
@@ -104,7 +124,8 @@
         order: order,
         // A sticky header and the body it floats over are their own groups, or
         // focus ping-pongs between them on every press.
-        fixed: isFixed(element)
+        fixed: isFixed(element),
+        section: sectionOf(element)
       });
     }
     return {

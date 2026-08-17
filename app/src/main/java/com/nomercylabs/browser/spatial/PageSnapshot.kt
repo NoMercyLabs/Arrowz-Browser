@@ -16,8 +16,13 @@ data class PageSnapshot(
     val focusedId: String,
 )
 
-/** A focusable, plus whether it is pinned to the viewport. */
-data class PageFocusable(val focusable: Focusable, val isFixed: Boolean)
+/** A focusable, plus whether it is pinned to the viewport and which row or
+ *  grid it belongs to. */
+data class PageFocusable(
+    val focusable: Focusable,
+    val isFixed: Boolean,
+    val section: String = "document",
+)
 
 /**
  * Parsing kept away from both the search and the bridge.
@@ -55,6 +60,7 @@ object PageSnapshotParser {
                     documentOrder = item.optInt("order"),
                 ),
                 isFixed = item.optBoolean("fixed"),
+                section = item.optString("section").ifEmpty { "document" },
             )
         }
 

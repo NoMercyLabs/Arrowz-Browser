@@ -348,6 +348,7 @@ class MainActivity : ComponentActivity() {
         }
 
         page.onNavigated { url ->
+            spatial.clear()
             chooseInputMode(url)
             val title: String = page.pageTitle
             storeThread.execute {
@@ -982,7 +983,7 @@ class MainActivity : ComponentActivity() {
                 widthPx = Tokens.Focus.RingWidth.value.toInt(),
                 radiusPx = Tokens.Radius.value.toInt(),
             )
-            spatial.focusFirst(HomeContent.originOf(host?.state?.url ?: ""))
+            spatial.focusFirst()
         } else {
             spatial.clear()
         }

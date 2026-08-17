@@ -23,14 +23,10 @@ import com.nomercylabs.browser.input.RemoteKey
  */
 class SpatialNavBridge(private val webView: () -> WebView?) {
 
-    /**
-     * The last element focused inside each section, so leaving a row or grid
-     * and coming back returns to where the viewer was. Without it a long grid
-     * is unusable: every re-entry starts at the first item again.
-     */
-    private val sectionMemory = mutableMapOf<String, String>()
+    private val sections = SectionMemory()
 
     private var lastFocusedId: String = ""
+    private var lastSection: String = "document"
 
     fun applyRingStyle(colorCss: String, widthPx: Int, radiusPx: Int) {
         evaluate("window.__nmSpatial && window.__nmSpatial.style('$colorCss', $widthPx, $radiusPx)")
@@ -71,6 +67,10 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
                 else -> false
             }
 
+            val sourceSection: String = snapshot.elements
+                .firstOrNull { element -> element.focusable.id == snapshot.focusedId }
+                ?.section ?: lastSection
+
             when (
                 val result = SpatialSearch.search(
                     direction = direction,
@@ -80,7 +80,14 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
                     canScroll = canScroll,
                 )
             ) {
-                is SpatialResult.Move -> focus(result.id)
+                is SpatialResult.Move -> {
+                    val winner: PageFocusable = snapshot.elements
+                        .first { element -> element.focusable.id == result.id }
+                    focus(
+                        id = sections.resolve(sourceSection, winner, snapshot.elements),
+                        section = winner.section,
+                    )
+                }
                 is SpatialResult.ScrollThenRetry -> onScroll(result.dx, result.dy)
                 SpatialResult.LeavePage -> onLeavePage()
             }
@@ -91,21 +98,23 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         evaluate("window.__nmSpatial && window.__nmSpatial.activate()")
     }
 
+    /** A new page is a new set of sections. Carrying the old ones over sends
+     *  focus at an element that no longer exists. */
     fun clear() {
         evaluate("window.__nmSpatial && window.__nmSpatial.clear()")
         lastFocusedId = ""
+        lastSection = "document"
+        sections.forget()
     }
 
-    /** Entering a page with nothing focused: start where the viewer left off in
-     *  this section if we know, and at the top of the document otherwise. */
-    fun focusFirst(sectionKey: String) {
+    /** Entering a page with nothing focused: the first element in document
+     *  order, which is where a reader would start. */
+    fun focusFirst() {
         readSnapshot { snapshot ->
-            if (snapshot == null) return@readSnapshot
-            val remembered: String? = sectionMemory[sectionKey]
-            val target: String? = remembered?.takeIf { id ->
-                snapshot.elements.any { element -> element.focusable.id == id }
-            } ?: snapshot.elements.minByOrNull { it.focusable.documentOrder }?.focusable?.id
-            if (target != null) focus(target, sectionKey)
+            val first: PageFocusable = snapshot?.elements
+                ?.minByOrNull { element -> element.focusable.documentOrder }
+                ?: return@readSnapshot
+            focus(first.focusable.id, first.section)
         }
     }
 
@@ -115,9 +124,10 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         }
     }
 
-    private fun focus(id: String, sectionKey: String = "") {
+    private fun focus(id: String, section: String) {
         lastFocusedId = id
-        if (sectionKey.isNotEmpty()) sectionMemory[sectionKey] = id
+        lastSection = section
+        sections.remember(section, id)
         evaluate("window.__nmSpatial && window.__nmSpatial.focus('$id')")
     }
 

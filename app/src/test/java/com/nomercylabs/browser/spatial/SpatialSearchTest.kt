@@ -159,6 +159,68 @@ class SpatialSearchTest {
         )
     }
 
+    // A sticky header floats over the body it scrolls above. Searching them as
+    // one set makes focus ping-pong between the header and the article on every
+    // press, so the caller filters by fixedness and this asserts the geometry
+    // that filtering produces.
+    @Test
+    fun aStickyHeaderAndTheBodyBelowItAreSearchedApart() {
+        val header = listOf(
+            at("headerLeft", left = 0, top = 0, order = 1),
+            at("headerRight", left = 300, top = 0, order = 2),
+        )
+        val body = listOf(
+            at("article", left = 0, top = 400, order = 3),
+            at("articleNext", left = 0, top = 600, order = 4),
+        )
+
+        // Standing in the header, searching only the header: RIGHT stays in it.
+        assertEquals(
+            "headerRight",
+            move(SpatialSearch.search(RemoteKey.Right, Rect(0, 0, 100, 40), header, viewport)),
+        )
+        // Standing in the body, searching only the body: DOWN never climbs back
+        // into the header however near it is.
+        assertEquals(
+            "articleNext",
+            move(SpatialSearch.search(RemoteKey.Down, Rect(0, 400, 100, 440), body, viewport)),
+        )
+    }
+
+    // Nested focusables are ordinary geometry, but a child inside the source's
+    // own box is not beyond it in any direction and must never win.
+    @Test
+    fun aFocusableNestedInsideTheSourceIsNeverACandidate() {
+        val source = Rect(0, 0, 400, 200)
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = source,
+            candidates = listOf(
+                at("childInsideSource", left = 20, top = 20, order = 1),
+                at("realNeighbour", left = 0, top = 300, order = 2),
+            ),
+            viewport = viewport,
+        )
+        assertEquals("realNeighbour", move(result))
+    }
+
+    // Overlapping cards: two elements sharing a boundary. The one that starts
+    // exactly where the source ends is beyond it; the one that straddles is not.
+    @Test
+    fun anOverlappingCandidateIsNotBeyondTheSourceButAnAbuttingOneIs() {
+        val source = Rect(0, 100, 200, 200)
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = source,
+            candidates = listOf(
+                at("straddlesTheEdge", left = 0, top = 180, order = 1, height = 100),
+                at("startsWhereSourceEnds", left = 0, top = 200, order = 2, height = 100),
+            ),
+            viewport = viewport,
+        )
+        assertEquals("startsWhereSourceEnds", move(result))
+    }
+
     @Test
     fun upIsTheMirrorOfDown() {
         val result = SpatialSearch.search(
