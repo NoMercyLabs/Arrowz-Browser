@@ -12,7 +12,7 @@ repository. One is still open, and it is the square one.
 | `play-feature-graphic-1024x500` | In, as `docs/store/feature-graphic-1024x500.png` |
 | `play-icon-512` | In as a placeholder, and needs redrawing with the one below |
 | `adaptive-icon-foreground-432` | Not usable yet — see below |
-| `screenshot-1920x1080` | Came back as key art rather than a screenshot |
+| `screenshot-1920x1080` | Slot filled by three real captures; the delivered art is kept as `key-art-1920x1080.png` |
 
 The wide artwork is right. The accent samples as `#FF0055` exactly, which is the
 value already in the app, so nothing in the palette had to move.
