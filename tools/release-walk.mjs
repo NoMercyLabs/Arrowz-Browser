@@ -17,7 +17,10 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 const serial = process.argv[2];
 const presses = Number(process.argv[3] ?? 8);
 const outDir = process.argv[4];
-const PACKAGE = 'com.nomercylabs.arrowz';
+// Overridable so the same walk can be run against the debug build. A run that
+// reports nothing moving is either a broken app or a broken harness, and
+// comparing the two variants is the only thing that tells them apart.
+const PACKAGE = process.env.NM_WALK_PACKAGE ?? 'com.nomercylabs.arrowz';
 
 mkdirSync(outDir, { recursive: true });
 
