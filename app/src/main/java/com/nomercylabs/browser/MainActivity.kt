@@ -158,6 +158,14 @@ class MainActivity : ComponentActivity() {
 
     private val spatial = SpatialNavBridge { host?.view }
 
+    /** Re-asking the page what it is, because a page that renders itself has
+     *  nothing to report at the moment it commits. */
+    private val modeProbe = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Bumped by every navigation and every deliberate choice, so probes still
+     *  walking an older page cannot land on a newer one. */
+    private var modeProbeGeneration: Int = 0
+
     /** The field being edited natively, and what has been typed into it so far.
      *  Held on the activity rather than in the sheet's composition, because
      *  dictation tears that composition down and comes back to it. */
@@ -1131,6 +1139,11 @@ class MainActivity : ComponentActivity() {
         }
 
         if (!remember) return
+
+        // A deliberate choice ends the argument. Any probe still waiting to
+        // report would otherwise arrive afterwards and overrule it.
+        modeProbeGeneration++
+
         val origin: String = HomeContent.originOf(host?.state?.url ?: "")
         if (origin.isEmpty()) return
         storeThread.execute { store.setPreference("$MODE_KEY_PREFIX$origin", mode.name) }
@@ -1142,6 +1155,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun chooseInputMode(url: String) {
         val origin: String = HomeContent.originOf(url)
+        val generation: Int = ++modeProbeGeneration
         storeThread.execute {
             val remembered: String? =
                 if (origin.isEmpty()) null else store.preference("$MODE_KEY_PREFIX$origin")
@@ -1153,17 +1167,43 @@ class MainActivity : ComponentActivity() {
                     )
                     return@runOnUiThread
                 }
-                spatial.probe { page ->
-                    val wanted: InputMode =
-                        if (page != null && NavigabilityProbe.prefersFocusMode(page)) {
-                            InputMode.Focus
-                        } else {
-                            InputMode.Cursor
-                        }
-                    setInputMode(wanted, remember = false)
-                }
+                // The pointer always works, so it is what a page starts with
+                // while we are still finding out what the page is.
+                setInputMode(InputMode.Cursor, remember = false)
+                askThePageAgain(generation, attempt = 0)
             }
         }
+    }
+
+    /**
+     * Asks the page whether it can be walked by focus, more than once.
+     *
+     * Measured on the 8010: DuckDuckGo sat in cursor mode with the pointer
+     * parked against the bottom edge, which reads exactly like a dead remote.
+     * The page reported six reachable controls when asked — but the question had
+     * been put at navigation commit, before its own script had drawn any of
+     * them. Deciding once, at the earliest possible instant, gets the answer
+     * wrong on every page that renders itself, and that is most of the web now.
+     *
+     * Only ever upgrades. Taking the pointer away from somebody already using it
+     * because a late banner appeared is worse than starting in the wrong mode,
+     * and a long press remembers their choice and cancels this outright.
+     */
+    private fun askThePageAgain(generation: Int, attempt: Int) {
+        if (generation != modeProbeGeneration) return
+        if (attempt >= MODE_PROBE_DELAYS_MS.size) return
+
+        modeProbe.postDelayed({
+            if (generation != modeProbeGeneration) return@postDelayed
+            spatial.probe { page ->
+                if (generation != modeProbeGeneration) return@probe
+                if (page != null && NavigabilityProbe.prefersFocusMode(page)) {
+                    setInputMode(InputMode.Focus, remember = false)
+                } else {
+                    askThePageAgain(generation, attempt + 1)
+                }
+            }
+        }, MODE_PROBE_DELAYS_MS[attempt])
     }
 
     /**
@@ -1216,6 +1256,17 @@ class MainActivity : ComponentActivity() {
          *  keeps it; leaving for anything else discards it. */
         val FIELD_SURFACES: Set<ChromeSurface> =
             setOf(ChromeSurface.Form, ChromeSurface.Select)
+
+        /**
+         * When to ask the page what it is, after it commits.
+         *
+         * Spread rather than repeated: a static page answers on the first, a
+         * framework that renders on load answers on the second or third, and a
+         * slow one on a weak processor gets the last. Stopping at three seconds
+         * because a page that has drawn nothing focusable by then is a page the
+         * pointer should keep.
+         */
+        val MODE_PROBE_DELAYS_MS: LongArray = longArrayOf(250, 750, 1500, 3000)
     }
 }
 
