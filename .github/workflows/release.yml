@@ -107,10 +107,31 @@ jobs:
             echo "path=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          VERSION="${{ steps.version.outputs.name }}"
           mkdir -p symbols && cp -r "$SRC"/* symbols/
           find symbols -name '*.so' -printf '  %p (%s bytes)\n'
-          (cd symbols && zip -qr ../release/native-debug-symbols.zip .)
-          echo "path=release/native-debug-symbols.zip" >> "$GITHUB_OUTPUT"
+          # -i '*.so': Play accepts <abi>/<lib>.so and nothing else, so anything
+          # else the intermediates directory happens to hold stays out.
+          (cd symbols && zip -q9r "../release/native-debug-symbols-$VERSION.zip" . -i '*.so')
+          echo "path=release/native-debug-symbols-$VERSION.zip" >> "$GITHUB_OUTPUT"
+
+          # The mapping is the half that makes a Java stack trace readable, and
+          # it is attached rather than left as a workflow artifact: artifacts
+          # expire and need a login, and this is the file somebody needs months
+          # later when a crash report from this exact build arrives.
+          MAPPING=app/build/outputs/mapping/release/mapping.txt
+          if [ -f "$MAPPING" ]; then
+            cp "$MAPPING" "release/mapping-$VERSION.txt"
+            echo "mapping: $(wc -l < "$MAPPING") lines"
+          else
+            echo "::warning title=No mapping file::R8 produced no mapping.txt, so stack traces from this build will stay obfuscated."
+          fi
+
+          # Checksums cover everything now, not just the two installables: a
+          # symbols zip nobody can verify is a symbols zip nobody should trust.
+          (cd release && sha256sum ./*.aab ./*.apk ./*.zip ./*.txt 2>/dev/null \
+            | grep -v SHA256SUMS | sed 's| \./| |' > SHA256SUMS.txt)
+          cat release/SHA256SUMS.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
@@ -153,6 +174,8 @@ jobs:
             --notes-file body.md \
             release/arrowz-browser-*.aab \
             release/arrowz-browser-*.apk \
+            release/native-debug-symbols-*.zip \
+            release/mapping-*.txt \
             release/SHA256SUMS.txt
 
       # The secrets context is not available in a step-level if, so the check
