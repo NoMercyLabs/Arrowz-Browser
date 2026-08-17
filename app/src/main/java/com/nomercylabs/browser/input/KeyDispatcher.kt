@@ -36,13 +36,31 @@ object KeyDispatcher {
             RemoteKey.Back -> dispatchBack(phase, state)
             RemoteKey.Center -> dispatchCenter(phase, state)
             RemoteKey.Up -> dispatchUp(phase, state)
-            RemoteKey.Down, RemoteKey.Left, RemoteKey.Right -> when (phase) {
+            RemoteKey.Down, RemoteKey.Left, RemoteKey.Right -> dispatchDirection(key, phase, state)
+        }
+    }
+
+    /**
+     * Focus mode moves in steps; cursor mode moves continuously.
+     *
+     * A pointer is a held state, so it starts on press and stops on release. A
+     * focus step is a discrete event, so it happens once per press and a
+     * release means nothing — repeating it on the way up would move focus twice
+     * for one press.
+     */
+    private fun dispatchDirection(key: RemoteKey, phase: KeyPhase, state: BrowserState): Command? =
+        if (state.mode == InputMode.Focus) {
+            when (phase) {
+                KeyPhase.Down -> Command.MoveFocus(key)
+                KeyPhase.Up, KeyPhase.LongPress -> null
+            }
+        } else {
+            when (phase) {
                 KeyPhase.Down -> Command.StartMove(key)
                 KeyPhase.Up -> Command.StopMove(key)
                 KeyPhase.LongPress -> null
             }
         }
-    }
 
     /**
      * BACK's five meanings, first match wins.
@@ -78,7 +96,15 @@ object KeyDispatcher {
      * nothing, and a press that does nothing is the failure this interface is
      * built to avoid.
      */
-    private fun dispatchUp(phase: KeyPhase, state: BrowserState): Command? = when (phase) {
+    private fun dispatchUp(phase: KeyPhase, state: BrowserState): Command? = if (
+        // In focus mode UP is always a focus step. Reaching the bar is not
+        // decided here but by the search: when nothing lies above and the page
+        // cannot scroll further, it reports that it has run out and the chrome
+        // takes over. One rule covers both, instead of two that can disagree.
+        state.mode == InputMode.Focus
+    ) {
+        dispatchDirection(RemoteKey.Up, phase, state)
+    } else when (phase) {
         // Decided on press, not release: the alternative is starting to move the
         // pointer and then revealing the bar when the key comes up, which reads
         // as the interface changing its mind.

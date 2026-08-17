@@ -69,4 +69,9 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+
+    // The android.jar on the unit-test classpath stubs org.json and throws from
+    // every method. The real implementation is the same API, so the parser under
+    // test is the one that ships rather than a rewrite that avoids the stub.
+    testImplementation(libs.json)
 }

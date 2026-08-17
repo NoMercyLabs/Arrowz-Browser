@@ -73,7 +73,11 @@ import com.nomercylabs.browser.input.Command
 import com.nomercylabs.browser.input.KeyDispatcher
 import com.nomercylabs.browser.input.KeyGestureTracker
 import com.nomercylabs.browser.input.KeyPhase
+import com.nomercylabs.browser.input.InputMode
 import com.nomercylabs.browser.input.RemoteKey
+import com.nomercylabs.browser.spatial.NavigabilityProbe
+import com.nomercylabs.browser.spatial.SpatialNavBridge
+import com.nomercylabs.browser.ui.Tokens
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -89,7 +93,10 @@ import com.nomercylabs.browser.tabs.MemoryPressure
 import com.nomercylabs.browser.tabs.Tab
 import com.nomercylabs.browser.tabs.TabPage
 import com.nomercylabs.browser.tabs.TabRegistry
+import androidx.compose.ui.graphics.toArgb
 import com.nomercylabs.browser.ui.LocalPalette
+import com.nomercylabs.browser.ui.Palette
+import com.nomercylabs.browser.ui.Palettes
 import com.nomercylabs.browser.ui.ThemeMode
 import com.nomercylabs.browser.ui.TvTheme
 import androidx.compose.ui.focus.FocusRequester
@@ -131,6 +138,11 @@ class MainActivity : ComponentActivity() {
     private var desktopOrigins: Set<String> by mutableStateOf(emptySet())
 
     private var pendingFileChooser: android.webkit.ValueCallback<Array<Uri>>? = null
+
+    /** Cursor or focus. Never both: exactly one system may consume a key. */
+    private var inputMode: InputMode by mutableStateOf(InputMode.Cursor)
+
+    private val spatial = SpatialNavBridge { host?.view }
 
     private val voiceInput = registerForActivityResult(StartActivityForResult()) { result ->
         val spoken: String? = result.data
@@ -267,6 +279,7 @@ class MainActivity : ComponentActivity() {
                     cursor = cursor,
                     page = host?.state ?: emptyPage,
                     chrome = chrome,
+                    focusMode = inputMode == InputMode.Focus,
                     editing = editingText,
                     onEditingChange = { value -> editingText = value },
                     cursorMoving = cursorMoving,
@@ -335,6 +348,7 @@ class MainActivity : ComponentActivity() {
         }
 
         page.onNavigated { url ->
+            chooseInputMode(url)
             val title: String = page.pageTitle
             storeThread.execute {
                 store.recordVisit(url, title)
@@ -368,7 +382,10 @@ class MainActivity : ComponentActivity() {
                 fullscreen.enter(view, callback)
             },
             onExitFullscreen = { fullscreen.exit() },
-            scriptsAtDocumentStart = listOf(readAsset("mediasession-shim.js")),
+            scriptsAtDocumentStart = listOf(
+                readAsset("mediasession-shim.js"),
+                readAsset("spatialnav.js"),
+            ),
             assetLoader = if (BuildConfig.DEBUG) {
                 WebViewAssetLoader.Builder()
                     .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
@@ -602,6 +619,7 @@ class MainActivity : ComponentActivity() {
         // can already be false while the same press is still travelling. Read as
         // "not editing", that press falls through to the exit rung of the
         // ladder, and dropping the keyboard closes the browser.
+        mode = inputMode,
         isEditingText = editingText || isKeyboardShowing(),
     )
 
@@ -892,8 +910,25 @@ class MainActivity : ComponentActivity() {
             cursorMoving = cursor.isMoving
             true
         }
+        is Command.MoveFocus -> {
+            spatial.move(
+                direction = command.key,
+                onScroll = { dx, dy -> host?.view?.scrollBy(dx, dy) },
+                // No dead ends: nothing above and nothing left to scroll means
+                // the chrome takes the press rather than it doing nothing.
+                onLeavePage = {
+                    if (command.key == RemoteKey.Up) showChrome(ChromeSurface.NavBar)
+                },
+            )
+            true
+        }
+
         Command.Activate -> {
-            host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
+            if (inputMode == InputMode.Focus) {
+                spatial.activate()
+            } else {
+                host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
+            }
             true
         }
 
@@ -907,7 +942,85 @@ class MainActivity : ComponentActivity() {
         Command.StopEditing -> { editingText = false; hideKeyboard(); true }
 
         Command.ExitFullscreen -> { fullscreen.exit(); true }
-        Command.ToggleInputMode -> false
+        // Remembered per site: the override is a judgement about this page, and
+        // making it again on every visit is the chore automatic mode selection
+        // exists to remove.
+        Command.ToggleInputMode -> {
+            setInputMode(
+                if (inputMode == InputMode.Focus) InputMode.Cursor else InputMode.Focus,
+                remember = true,
+            )
+            true
+        }
+    }
+
+    /**
+     * The ring web content draws is the chrome's ring, taken from the same
+     * token. Two definitions drift apart within two releases, and then native
+     * and page focus stop looking like one interface.
+     */
+    private fun focusRingCss(): String {
+        val palette: Palette = if (resolveDark()) Palettes.Dark else Palettes.Light
+        val color: Int = palette.focusRing.toArgb()
+        return "rgb(${(color shr 16) and 0xFF},${(color shr 8) and 0xFF},${color and 0xFF})"
+    }
+
+    private fun resolveDark(): Boolean = when (themeMode) {
+        ThemeMode.System -> isSystemDark()
+        ThemeMode.Dark -> true
+        ThemeMode.Light -> false
+    }
+
+    private fun setInputMode(mode: InputMode, remember: Boolean) {
+        inputMode = mode
+        cursor.releaseAll()
+        cursorMoving = false
+
+        if (mode == InputMode.Focus) {
+            spatial.applyRingStyle(
+                colorCss = focusRingCss(),
+                widthPx = Tokens.Focus.RingWidth.value.toInt(),
+                radiusPx = Tokens.Radius.value.toInt(),
+            )
+            spatial.focusFirst(HomeContent.originOf(host?.state?.url ?: ""))
+        } else {
+            spatial.clear()
+        }
+
+        if (!remember) return
+        val origin: String = HomeContent.originOf(host?.state?.url ?: "")
+        if (origin.isEmpty()) return
+        storeThread.execute { store.setPreference("$MODE_KEY_PREFIX$origin", mode.name) }
+    }
+
+    /**
+     * What a freshly loaded page starts in: the site's remembered override if
+     * there is one, and otherwise whatever the page's own shape argues for.
+     */
+    private fun chooseInputMode(url: String) {
+        val origin: String = HomeContent.originOf(url)
+        storeThread.execute {
+            val remembered: String? =
+                if (origin.isEmpty()) null else store.preference("$MODE_KEY_PREFIX$origin")
+            runOnUiThread {
+                if (remembered != null) {
+                    setInputMode(
+                        runCatching { InputMode.valueOf(remembered) }.getOrDefault(InputMode.Cursor),
+                        remember = false,
+                    )
+                    return@runOnUiThread
+                }
+                spatial.probe { page ->
+                    val wanted: InputMode =
+                        if (page != null && NavigabilityProbe.prefersFocusMode(page)) {
+                            InputMode.Focus
+                        } else {
+                            InputMode.Cursor
+                        }
+                    setInputMode(wanted, remember = false)
+                }
+            }
+        }
     }
 
     /**
@@ -951,6 +1064,7 @@ class MainActivity : ComponentActivity() {
         const val DESKTOP_ORIGINS_KEY: String = "ua.desktop.origins"
         const val DECISION_ALLOW: String = "allow"
         const val DECISION_BLOCK: String = "block"
+        const val MODE_KEY_PREFIX: String = "mode."
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
@@ -990,6 +1104,7 @@ private fun BrowserScreen(
     cursor: CursorState,
     page: PageState,
     chrome: ChromeSurface,
+    focusMode: Boolean,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
     cursorMoving: Boolean,
@@ -1125,7 +1240,10 @@ private fun BrowserScreen(
 
         // Hidden while a chrome surface or the home screen is up, so it is never
         // ambiguous on screen which of the two focus systems the D-pad drives.
-        CursorOverlay(position = position, visible = chrome == ChromeSurface.None && !showHome)
+        CursorOverlay(
+            position = position,
+            visible = chrome == ChromeSurface.None && !showHome && !focusMode,
+        )
 
         when (chrome) {
             ChromeSurface.None -> Unit

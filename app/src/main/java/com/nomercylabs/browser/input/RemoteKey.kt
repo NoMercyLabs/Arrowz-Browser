@@ -96,5 +96,12 @@ sealed interface Command {
      */
     data class StartMove(val key: RemoteKey) : Command
     data class StopMove(val key: RemoteKey) : Command
+
+    /**
+     * A focus step, which is an event rather than a state: it happens once per
+     * press, and the release means nothing. Repeating it on the way up would
+     * move focus twice for one press.
+     */
+    data class MoveFocus(val key: RemoteKey) : Command
     data object Activate : Command
 }
