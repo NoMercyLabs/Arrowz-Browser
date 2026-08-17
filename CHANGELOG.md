@@ -35,6 +35,17 @@ All notable changes to this project are recorded here. The format follows
 - Downloads through the system downloader, and a file chooser for pages that ask for one.
 - Desktop or TV site per origin, remembered.
 - The designer's Moooom icons throughout, as vector drawables tinted at draw time.
+- Spatial navigation inside page content: Android's own beam-and-weight rules applied to the DOM, so a press moves to the element beside the one you are on rather than to whichever rectangle happens to be nearest. Scrolls before it jumps, remembers the last item in each row or grid, and hands focus to the chrome rather than doing nothing.
+- The focus ring inside web content is drawn by us, from the same token the native chrome uses, because a site's own focus style is frequently invisible at three metres or removed outright.
+- Input mode is chosen per page and re-asked as the page renders, since a page that has drawn nothing focusable at navigation time usually has by the time it settles. A long press of OK overrules it, per site.
+- Native form editing: a web field opens a real television keyboard with the layout its type asks for, a `<select>` becomes a list a D-pad can operate, and voice dictation goes straight into the field.
+- Links from other apps: the browser is a system web handler for http and https, opening a cold start in its single empty tab and a warm one in a new tab, so a page being read is never discarded.
+- Screen-reader support: with TalkBack running the pointer, the injected ring and our own spatial search all stand down, so one focus system walks the chrome and the page as a single tree.
+- Announcements for page load, load failure and tab changes, spoken only when a reader is listening and never twice for the same event.
+- The television's caption preferences applied to web video through an injected `::cue` rule, and the system font scale carried into page text.
+- Tracker blocking, on by default, using the public EasyList and uBlock Origin lists fetched from their own publishers, with a smaller seed list inside the app so the first page is already protected. Rules are indexed by token rather than compiled per rule, and element hiding is a separate CSS injection.
+- Cookies are erased when the browser closes, with a per-site choice to stay signed in.
+- Brand assets generated from one description of the mark, and a Dutch translation alongside the English strings.
 
 ### Fixed
 
@@ -45,6 +56,12 @@ All notable changes to this project are recorded here. The format follows
 - The keyboard closing never ended editing, since the leanback IME reports no window inset. Regaining window focus is the signal that does arrive.
 - Pressing HOME released a tab: `TRIM_MEMORY_UI_HIDDEN` is a lifecycle notice rather than memory pressure.
 - Debug and release builds shared a launcher name, so both appeared in the launcher as the same app.
+- The release build rendered a black screen. R8's optimizer, on the artifact the pipeline produces and nothing else; shrinking and obfuscation were both innocent. CI now builds the release variant on every push, since the debug APK is not the thing anybody installs.
+- A television that had already run the browser crashed on launch after an upgrade, because a table added to the database's create path never reached an existing device. Create and upgrade are now the same list of statements.
+- Focus could land on elements nobody could see, including a closed off-canvas drawer, and could not reach a label acting as a control.
+- BACK from the first page opened after a launch left the browser entirely rather than returning to the home screen.
+- A search page that focused its own box opened a suggestion list over the results that no press could dismiss.
+- The focus ring leaked: its class and its attribute were removed separately, so a re-rendered element kept the attribute and a second ring was drawn.
 
 ### Changed
 
