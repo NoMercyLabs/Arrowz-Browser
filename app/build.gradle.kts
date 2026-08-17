@@ -12,8 +12,16 @@ android {
         applicationId = "com.nomercylabs.arrowz"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        // CI decides both, the same way the KMP app does: the date is what a
+        // tester can read back to us, and the code is the run number, which only
+        // ever goes up. Hand-maintained versions are one edit away from a
+        // release Play refuses, and 0.1.1 already collided that way.
+        //
+        // The offset covers versionCodes 1 and 2, which were published by hand
+        // before this existed. Play requires them to increase forever, so the
+        // floor can never be lowered.
+        versionCode = (System.getenv("NM_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("NM_VERSION_NAME") ?: "dev"
 
         // A hold on BACK cannot be reproduced from adb: --longpress sets the
         // framework flag and takes a path that already worked, and sendevent

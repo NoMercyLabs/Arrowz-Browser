@@ -6,6 +6,38 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [2026.08.18]
+
+Versions are dates from here on, and neither number is written by hand any
+more. The name is the date CI built it, which is what a tester can read off the
+About screen and quote back, and the versionCode is the run number, which only
+ever increases. A hand-maintained version is one forgotten edit away from a
+release Play refuses for a duplicate code, which is exactly how 0.1.1 was spent.
+
+The run number carries a +100 offset so it clears codes 1 and 2, published by
+hand before this existed. Play requires the code to increase forever for one
+application id, so that floor can never be lowered.
+
+A run is now a release. It tags itself from the version it derived, instead of
+waiting for somebody to push a tag, so nothing reaches Play without a commit in
+git behind it.
+
+### Changed
+
+A release now hands Play the R8 mapping file and the native debug symbols. The
+mapping was the more serious omission: code shrinking is on, so without it every
+Java stack trace in the console is obfuscated and a crash report says nothing.
+
+The symbols are a partial fix by nature. The only native library here is the one
+Compose brings in transitively, and it ships stripped, so there is no debug
+information to embed and what Play receives is a dynamic symbol table. That
+turns addresses in a native crash into exported function names, which is better
+than bare addresses and less than real symbolication.
+
+A rejected Play upload no longer fails the release. The artifacts are built,
+signed, checksummed and attached before the upload is attempted, so a rejection
+used to retract a release people could otherwise download. It warns instead.
+
 ## [0.1.1] - 2026-08-17
 
 ### Added

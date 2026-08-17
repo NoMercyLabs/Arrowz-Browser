@@ -26,6 +26,33 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Nobody edits a version by hand. The name is the date, because that is
+      # what a tester can read off an About screen and quote back to us, and the
+      # code is the run number, which only ever increases.
+      #
+      # The +100 offset clears versionCodes 1 and 2, published by hand before
+      # this step existed. Play requires the code to increase forever for one
+      # applicationId, so this floor can never be lowered.
+      #
+      # A tag push keeps the tag's own name, so a deliberately named release
+      # stays that name. Anything else gets today's date, suffixed when the day
+      # already has one.
+      - name: Decide the version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            NAME="${GITHUB_REF_NAME#v}"
+          else
+            DATE=$(date +"%Y.%m.%d")
+            SAME_DAY=$(git tag --list "v${DATE}*" | wc -l)
+            NAME="$DATE"
+            [ "$SAME_DAY" -gt 0 ] && NAME="${DATE}-$((SAME_DAY + 1))"
+          fi
+          CODE=$(( GITHUB_RUN_NUMBER + 100 ))
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "Building $NAME as versionCode $CODE" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Restore upload keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.NM_KEYSTORE_BASE64 }}
@@ -45,6 +72,8 @@ jobs:
           NM_KEYSTORE_PASSWORD: ${{ secrets.NM_KEYSTORE_PASSWORD }}
           NM_KEY_ALIAS: ${{ secrets.NM_KEY_ALIAS }}
           NM_KEY_PASSWORD: ${{ secrets.NM_KEY_PASSWORD }}
+          NM_VERSION_NAME: ${{ steps.version.outputs.name }}
+          NM_VERSION_CODE: ${{ steps.version.outputs.code }}
         run: ./gradlew bundleRelease assembleRelease
 
       # Named for the version rather than "app-release", so a file sitting in
@@ -52,8 +81,7 @@ jobs:
       - name: Name and checksum the artifacts
         id: artifacts
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [ "$GITHUB_REF_TYPE" != "tag" ]; then VERSION="$(git rev-parse --short HEAD)"; fi
+          VERSION="${{ steps.version.outputs.name }}"
           mkdir -p release
           cp app/build/outputs/bundle/release/app-release.aab "release/arrowz-browser-$VERSION.aab"
           cp app/build/outputs/apk/release/app-release.apk "release/arrowz-browser-$VERSION.apk"
@@ -92,14 +120,19 @@ jobs:
 
       # A workflow artifact expires and needs a GitHub login to fetch. A release
       # asset does neither, which is what "downloadable" has to mean.
+      # No longer tag-only. The version is decided by the run now, so a run is a
+      # release: it tags itself from the name it just derived. Without this the
+      # date version would exist on Play with no tag behind it, and nothing in
+      # git would say which commit shipped.
       - name: Publish the release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.name }}
         run: |
           # The section for this version, not whatever sits at the top of the
-          # file: Unreleased is above it and says nothing.
-          awk -v want="## [${GITHUB_REF_NAME#v}]" \
+          # file: Unreleased is above it and says nothing. A date version has no
+          # section, and falls through to the CHANGELOG pointer below.
+          awk -v want="## [$VERSION]" \
             'index($0, want) == 1 { inside = 1; next } /^## \[/ { inside = 0 } inside' \
             CHANGELOG.md > notes.md
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
@@ -114,8 +147,9 @@ jobs:
             echo '```'
           } > body.md
 
-          gh release create "$GITHUB_REF_NAME" \
-            --title "Arrowz Browser ${GITHUB_REF_NAME#v}" \
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "Arrowz Browser $VERSION" \
             --notes-file body.md \
             release/arrowz-browser-*.aab \
             release/arrowz-browser-*.apk \
@@ -136,7 +170,7 @@ jobs:
         run: |
           if [ -n "$PLAY_JSON" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "Publishing $GITHUB_REF_NAME to the internal track." >> "$GITHUB_STEP_SUMMARY"
+            echo "Publishing ${{ steps.version.outputs.name }} to the internal track." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::warning title=Nothing was published to Play::PLAY_SERVICE_ACCOUNT_JSON is not set, so this release built and attached its artifacts but never reached the Play Console. See docs/release.md."
