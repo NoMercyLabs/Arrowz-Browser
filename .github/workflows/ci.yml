@@ -48,7 +48,11 @@ jobs:
       # rather than the policy quietly becoming false.
       - name: No analytics dependencies
         run: |
+          # Both variants. The gate read debug only, and the release classpath is
+          # the one that ships: a releaseImplementation dependency would have
+          # gone to Play with the data-safety declaration still claiming none.
           ./gradlew :app:dependencies --configuration debugRuntimeClasspath > deps.txt
+          ./gradlew :app:dependencies --configuration releaseRuntimeClasspath >> deps.txt
           FORBIDDEN='com\.google\.firebase|play-services-analytics|play-services-measurement|com\.crashlytics|io\.sentry|com\.amplitude|com\.mixpanel|com\.segment|com\.appsflyer|com\.facebook\.android|com\.google\.android\.gms:play-services-ads'
           if grep -E "$FORBIDDEN" deps.txt; then
             echo "::error::An analytics, crash reporting or advertising dependency was added. See CONTRIBUTING.md."
