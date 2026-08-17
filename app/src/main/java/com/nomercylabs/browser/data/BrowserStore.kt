@@ -53,52 +53,38 @@ interface BrowserStore {
  */
 class SqliteBrowserStore(context: Context) : BrowserStore {
 
+    /**
+     * One schema, applied identically on a first install and on an upgrade.
+     *
+     * The two used to be separate lists, and the failure that produced was
+     * silent and total: `prefs` was added to the create path without a version
+     * bump, so every device that had ever run the browser before kept a database
+     * without it, `onUpgrade` never ran, and the app crashed on launch reading a
+     * table that existed only for people installing it for the first time.
+     * Measured on the 8000, which had the older database.
+     *
+     * `IF NOT EXISTS` on every statement is what makes the two paths the same
+     * one. Adding a table is now a single edit that reaches an existing
+     * television as well as a new one, and forgetting the version bump costs
+     * nothing.
+     */
     private val helper = object : SQLiteOpenHelper(context, DATABASE_NAME, null, VERSION) {
-        override fun onCreate(db: SQLiteDatabase) {
-            db.execSQL(
-                """
-                CREATE TABLE bookmarks (
-                    id TEXT PRIMARY KEY NOT NULL,
-                    url TEXT NOT NULL,
-                    title TEXT NOT NULL,
-                    origin TEXT NOT NULL,
-                    updatedAt INTEGER NOT NULL,
-                    deletedAt INTEGER
-                )
-                """.trimIndent(),
-            )
-            db.execSQL("CREATE UNIQUE INDEX bookmarks_origin ON bookmarks(origin)")
-            db.execSQL(
-                """
-                CREATE TABLE prefs (
-                    key TEXT PRIMARY KEY NOT NULL,
-                    value TEXT NOT NULL,
-                    updatedAt INTEGER NOT NULL
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(
-                """
-                CREATE TABLE visits (
-                    origin TEXT PRIMARY KEY NOT NULL,
-                    count INTEGER NOT NULL,
-                    lastVisitedAt INTEGER NOT NULL
-                )
-                """.trimIndent(),
-            )
-            db.execSQL(CREATE_HISTORY)
-            db.execSQL(CREATE_SITE_PERMISSIONS)
-        }
+        override fun onCreate(db: SQLiteDatabase) = applySchema(db)
 
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            // Added, never rebuilt. Somebody's television already holds their
-            // favourites and their most-visited counts, and a drop-and-recreate
-            // upgrade would take both away to add a table beside them.
-            if (oldVersion < VERSION_WITH_HISTORY) {
-                db.execSQL(CREATE_HISTORY)
-                db.execSQL(CREATE_SITE_PERMISSIONS)
-            }
-        }
+        // Added, never rebuilt. Somebody's television already holds their
+        // favourites and their most-visited counts, and a drop-and-recreate
+        // upgrade would take both away to add a table beside them.
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) =
+            applySchema(db)
+
+        // A database from a build newer than this one is missing nothing we
+        // need, and refusing to open it — the platform default — is a crash
+        // loop after a downgrade.
+        override fun onDowngrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) =
+            applySchema(db)
+
+        private fun applySchema(db: SQLiteDatabase) =
+            SCHEMA.forEach { statement -> db.execSQL(statement) }
     }
 
     override fun bookmarks(): List<Bookmark> {
@@ -262,27 +248,55 @@ class SqliteBrowserStore(context: Context) : BrowserStore {
 
     private companion object {
         const val DATABASE_NAME: String = "browser.db"
-        const val VERSION: Int = 2
-        const val VERSION_WITH_HISTORY: Int = 2
 
-        val CREATE_HISTORY: String = """
-            CREATE TABLE history (
+        /** Bumped so a device that already holds a database is offered the
+         *  schema at all. Without a bump the platform never calls us. */
+        const val VERSION: Int = 3
+
+        val SCHEMA: List<String> = listOf(
+            """
+            CREATE TABLE IF NOT EXISTS bookmarks (
+                id TEXT PRIMARY KEY NOT NULL,
+                url TEXT NOT NULL,
+                title TEXT NOT NULL,
+                origin TEXT NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                deletedAt INTEGER
+            )
+            """.trimIndent(),
+            "CREATE UNIQUE INDEX IF NOT EXISTS bookmarks_origin ON bookmarks(origin)",
+            """
+            CREATE TABLE IF NOT EXISTS prefs (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL,
+                updatedAt INTEGER NOT NULL
+            )
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS visits (
+                origin TEXT PRIMARY KEY NOT NULL,
+                count INTEGER NOT NULL,
+                lastVisitedAt INTEGER NOT NULL
+            )
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS history (
                 id TEXT PRIMARY KEY NOT NULL,
                 url TEXT NOT NULL,
                 title TEXT NOT NULL,
                 origin TEXT NOT NULL,
                 visitedAt INTEGER NOT NULL
             )
-        """.trimIndent()
-
-        val CREATE_SITE_PERMISSIONS: String = """
-            CREATE TABLE site_permissions (
+            """.trimIndent(),
+            """
+            CREATE TABLE IF NOT EXISTS site_permissions (
                 origin TEXT NOT NULL,
                 kind TEXT NOT NULL,
                 decision TEXT NOT NULL,
                 updatedAt INTEGER NOT NULL,
                 PRIMARY KEY (origin, kind)
             )
-        """.trimIndent()
+            """.trimIndent(),
+        )
     }
 }
