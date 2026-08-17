@@ -46,6 +46,30 @@ class KeyDispatcherTest {
         assertEquals(Command.GoBack, back(BrowserState(canGoBack = true)))
     }
 
+    // A field on the page holding focus is its own rung. Walking history or
+    // exiting the browser while the caret sits in a login box is the most
+    // alarming thing an input can do, and it is what every other rung would
+    // have done here.
+    @Test
+    fun backReleasesAFocusedPageFieldBeforeWalkingHistory() {
+        val state = BrowserState(isPageFieldFocused = true, canGoBack = true)
+        assertEquals(Command.ReleasePageFocus, back(state))
+    }
+
+    @Test
+    fun backReleasesAFocusedPageFieldRatherThanExitingTheApp() {
+        val state = BrowserState(isPageFieldFocused = true, canGoBack = false)
+        assertEquals(Command.ReleasePageFocus, back(state))
+    }
+
+    // Our own sheet sits above the page's field: one press leaves the sheet,
+    // the next releases the field, the one after that leaves the page.
+    @Test
+    fun aChromeSurfaceOverAFocusedFieldClosesFirst() {
+        val state = BrowserState(isChromeOpen = true, isPageFieldFocused = true, canGoBack = true)
+        assertEquals(Command.CloseChrome, back(state))
+    }
+
     // The guarantee that no page can trap the user: once history is exhausted,
     // BACK always reaches the app exit rather than becoming a no-op.
     @Test

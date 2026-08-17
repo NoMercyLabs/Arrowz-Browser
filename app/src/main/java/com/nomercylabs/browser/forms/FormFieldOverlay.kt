@@ -1,0 +1,133 @@
+/*
+ * Copyright (c) 2026 NoMercy Labs
+ * SPDX-License-Identifier: MIT
+ */
+
+package com.nomercylabs.browser.forms
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import com.nomercylabs.browser.R
+import com.nomercylabs.browser.ui.IconButton
+import com.nomercylabs.browser.ui.ListRow
+import com.nomercylabs.browser.ui.LocalPalette
+import com.nomercylabs.browser.ui.NavIcons
+import com.nomercylabs.browser.ui.Palette
+import com.nomercylabs.browser.ui.Tokens
+import com.nomercylabs.browser.ui.TvTextField
+import com.nomercylabs.browser.ui.overscan
+
+/**
+ * Editing one web field in a native control.
+ *
+ * A web input on a television fails three ways at once: the leanback keyboard
+ * covers the field it is editing so the viewer types blind, the caret is a few
+ * pixels tall at three metres, and the page's own key handling assumes a mouse.
+ * So the field is not edited in place. The page receives an ordinary `input`
+ * and `change` pair afterwards and cannot tell the difference.
+ */
+@Composable
+fun FormFieldOverlay(
+    field: FormField,
+    value: String,
+    onValueChange: (String) -> Unit,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
+    onCommit: () -> Unit,
+    onVoice: () -> Unit,
+) {
+    val palette: Palette = LocalPalette.current
+    val label: String = field.label.ifBlank { stringResource(R.string.form_field_generic) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(palette.surface.copy(alpha = SCRIM_ALPHA))
+            .overscan()
+            .focusGroup(),
+        verticalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
+    ) {
+        BasicText(
+            text = label,
+            style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextTitle),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        // Required and invalid are the page's own judgement, shown here rather
+        // than discovered through a submit whose result the viewer cannot see.
+        val note: String = when {
+            field.isInvalid -> stringResource(R.string.form_invalid)
+            field.isRequired -> stringResource(R.string.form_required)
+            else -> ""
+        }
+        if (note.isNotEmpty()) {
+            BasicText(
+                text = note,
+                style = TextStyle(color = palette.onSurfaceMuted, fontSize = Tokens.TextBody),
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Tokens.SpaceSm),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TvTextField(
+                value = value,
+                onValueChange = onValueChange,
+                onSubmit = onCommit,
+                placeholder = label,
+                contentDescription = label,
+                editing = editing,
+                onEditingChange = onEditingChange,
+                requestInitialFocus = true,
+                keyboardType = keyboardTypeFor(field.keyboard),
+                isSecret = field.keyboard == FieldKeyboard.Password,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                contentDescription = stringResource(R.string.form_voice),
+                onClick = onVoice,
+            ) { tint -> NavIcons.Mic(tint) }
+        }
+
+        // A row rather than a hint, because it has to be reachable: OK on a
+        // field raises the keyboard, so there must be somewhere else to press
+        // OK that means "finished".
+        ListRow(
+            title = stringResource(R.string.form_done),
+            subtitle = "",
+            selected = false,
+            offered = true,
+            onClick = onCommit,
+        )
+    }
+}
+
+/**
+ * The page's field type mapped onto a keyboard. Kept here rather than in the
+ * model so the model stays free of Compose and can be tested without it.
+ */
+private fun keyboardTypeFor(keyboard: FieldKeyboard): KeyboardType = when (keyboard) {
+    FieldKeyboard.Email -> KeyboardType.Email
+    FieldKeyboard.Number -> KeyboardType.Number
+    FieldKeyboard.Decimal -> KeyboardType.Decimal
+    FieldKeyboard.Phone -> KeyboardType.Phone
+    FieldKeyboard.Url -> KeyboardType.Uri
+    FieldKeyboard.Password -> KeyboardType.Password
+    FieldKeyboard.Text -> KeyboardType.Text
+}
+
+private const val SCRIM_ALPHA: Float = 0.97f

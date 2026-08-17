@@ -73,6 +73,16 @@ data class BrowserState(
      * close the keyboard rather than the surface behind it.
      */
     val isEditingText: Boolean = false,
+    /**
+     * Whether a field inside the page holds focus.
+     *
+     * Distinct from [isEditingText], which is our own chrome's field. BACK here
+     * releases the page's field and does nothing else — no history, no exit —
+     * because that is what every native app on the platform does, and leaving
+     * the caret where it is while closing the browser instead is the most
+     * alarming thing an input can do.
+     */
+    val isPageFieldFocused: Boolean = false,
 )
 
 /**
@@ -83,6 +93,9 @@ sealed interface Command {
     data object ExitFullscreen : Command
     data object CloseChrome : Command
     data object StopEditing : Command
+
+    /** Blur the page's own focused field, and nothing else. */
+    data object ReleasePageFocus : Command
     data object OpenMenu : Command
     data object GoBack : Command
     data object ExitApp : Command

@@ -21,6 +21,14 @@ interface TabPage {
     val pageTitle: String
     val isSuspended: Boolean
 
+    /**
+     * Whether the page holds edits that have not been submitted.
+     *
+     * Defaulted rather than required, because a page that cannot be typed into
+     * cannot lose anything. `WebViewHost` answers it from the form bridge.
+     */
+    val hasDirtyForm: Boolean get() = false
+
     /** Release the renderer, keeping enough to come back. */
     fun suspendPage()
 
@@ -117,10 +125,7 @@ class TabRegistry(
             id = tab.id,
             lastUsedMillis = tab.lastUsedMillis,
             isPlayingMedia = isPlayingMedia(tab.id),
-            // Set in slice 11, when form introspection can tell us. Declared
-            // now because the exemption it feeds is already tested, and finding
-            // it missing costs somebody what they typed.
-            hasDirtyForm = false,
+            hasDirtyForm = tab.page.hasDirtyForm,
             isForeground = tab.id == activeId,
             isSuspended = tab.page.isSuspended,
         )

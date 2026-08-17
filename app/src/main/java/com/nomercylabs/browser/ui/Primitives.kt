@@ -54,6 +54,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -228,6 +230,13 @@ fun TvTextField(
     modifier: Modifier = Modifier,
     requestInitialFocus: Boolean = false,
     externalFocusRequester: FocusRequester? = null,
+    /** Which leanback keyboard to raise. A `tel` field on a page offers digits
+     *  rather than a full alphabet, which is a different keyboard entirely at
+     *  three metres. */
+    keyboardType: KeyboardType = KeyboardType.Uri,
+    /** A password, drawn as dots. Nothing else in this app hides what it holds,
+     *  and a living room is the one place a shoulder is guaranteed. */
+    isSecret: Boolean = false,
 ) {
     val palette: Palette = LocalPalette.current
     var focused: Boolean by remember { mutableStateOf(false) }
@@ -282,17 +291,22 @@ fun TvTextField(
                 textStyle = TextStyle(color = palette.onSurface, fontSize = Tokens.TextBody),
                 cursorBrush = SolidColor(palette.accent),
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Uri,
+                    keyboardType = keyboardType,
                     imeAction = ImeAction.Go,
                 ),
                 keyboardActions = KeyboardActions(onGo = { onSubmit() }),
+                visualTransformation = if (isSecret) {
+                    PasswordVisualTransformation()
+                } else {
+                    VisualTransformation.None
+                },
                 modifier = Modifier
                     .focusRequester(fieldFocusRequester)
                     .semantics { this.contentDescription = description },
             )
         } else {
             BasicText(
-                text = value,
+                text = if (isSecret) MASK.repeat(value.length) else value,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = TextStyle(color = palette.onSurface, fontSize = Tokens.TextBody),
@@ -546,3 +560,6 @@ private const val MUTED_ON_ACCENT: Float = 0.75f
  *  be showing behind it, and only the last sliver of transparency says there is
  *  a page there at all. */
 private const val HEADER_ALPHA: Float = 0.97f
+
+/** What a password reads as while it is not being edited. */
+private const val MASK: String = "•"

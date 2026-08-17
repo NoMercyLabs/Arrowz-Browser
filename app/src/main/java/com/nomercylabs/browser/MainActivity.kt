@@ -23,6 +23,11 @@ import com.nomercylabs.browser.chrome.LibraryRow
 import com.nomercylabs.browser.chrome.LibraryScreen
 import com.nomercylabs.browser.chrome.PermissionAsk
 import com.nomercylabs.browser.chrome.PermissionPrompt
+import com.nomercylabs.browser.forms.FieldKind
+import com.nomercylabs.browser.forms.FormBridge
+import com.nomercylabs.browser.forms.FormField
+import com.nomercylabs.browser.forms.FormFieldOverlay
+import com.nomercylabs.browser.forms.SelectListSheet
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -105,7 +110,14 @@ import androidx.compose.ui.focus.FocusRequester
 
 /** Which chrome surface is over the page. Never two, and never both hidden and
  *  consuming input. */
-private enum class ChromeSurface { None, NavBar, Tabs, Menu, Find, Bookmarks, History, Permission }
+private enum class ChromeSurface {
+    None, NavBar, Tabs, Menu, Find, Bookmarks, History, Permission, Form, Select,
+}
+
+/** Where a dictation result belongs. The recogniser is a separate activity, so
+ *  the answer comes back long after whatever asked for it stopped being on
+ *  screen, and without this it lands wherever the address bar happens to be. */
+private enum class VoiceTarget { Address, Field }
 
 class MainActivity : ComponentActivity() {
 
@@ -146,11 +158,30 @@ class MainActivity : ComponentActivity() {
 
     private val spatial = SpatialNavBridge { host?.view }
 
+    /** The field being edited natively, and what has been typed into it so far.
+     *  Held on the activity rather than in the sheet's composition, because
+     *  dictation tears that composition down and comes back to it. */
+    private var formField: FormField? by mutableStateOf(null)
+    private var formValue: String by mutableStateOf("")
+
+    private var voiceTarget: VoiceTarget = VoiceTarget.Address
+
     private val voiceInput = registerForActivityResult(StartActivityForResult()) { result ->
         val spoken: String? = result.data
             ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             ?.firstOrNull()
-        if (!spoken.isNullOrBlank()) navigate(spoken)
+        if (spoken.isNullOrBlank()) return@registerForActivityResult
+
+        when (voiceTarget) {
+            VoiceTarget.Address -> navigate(spoken)
+            // Appended rather than replacing, so a second phrase adds to the
+            // first instead of throwing it away.
+            VoiceTarget.Field -> formValue = if (formValue.isEmpty()) {
+                spoken
+            } else {
+                "$formValue $spoken"
+            }
+        }
     }
 
     /**
@@ -315,6 +346,12 @@ class MainActivity : ComponentActivity() {
                     onRemoveBookmark = { row -> removeBookmark(row.subtitle) },
                     permissionAsk = permissionAsk,
                     onAnswerPermission = { allow, remember -> answerPermission(allow, remember) },
+                    formField = formField,
+                    formValue = formValue,
+                    onFormValueChange = { typed -> formValue = typed },
+                    onCommitField = { commitField() },
+                    onChooseOption = { index -> chooseOption(index) },
+                    onFieldVoice = { startVoiceInput(VoiceTarget.Field) },
                     onCloseSurface = { showChrome(ChromeSurface.None) },
                     themeMode = themeMode,
                     onCycleTheme = { cycleThemeMode() },
@@ -334,6 +371,14 @@ class MainActivity : ComponentActivity() {
      */
     private fun createPage(tabId: String): TabPage {
         val page = WebViewHost(WebView(this))
+
+        // Before the first configure, which is what registers the interface the
+        // injected script talks to.
+        page.formBridge = FormBridge(
+            webView = { page.view },
+            now = { SystemClock.uptimeMillis() },
+            onOpenField = { field -> openField(field) },
+        )
         configureHost(page, tabId)
 
         page.onRebuildRequired { savedState, url ->
@@ -351,6 +396,10 @@ class MainActivity : ComponentActivity() {
 
         page.onNavigated { url ->
             spatial.clear()
+            // A new document, so the old page's focused field and its edits are
+            // gone with it. Keeping either exempts this tab from suspension for
+            // the rest of its life.
+            page.formBridge?.forgetPage()
             chooseInputMode(url)
             val title: String = page.pageTitle
             storeThread.execute {
@@ -388,6 +437,7 @@ class MainActivity : ComponentActivity() {
             scriptsAtDocumentStart = listOf(
                 readAsset("mediasession-shim.js"),
                 readAsset("spatialnav.js"),
+                readAsset("formbridge.js"),
             ),
             assetLoader = if (BuildConfig.DEBUG) {
                 WebViewAssetLoader.Builder()
@@ -407,6 +457,10 @@ class MainActivity : ComponentActivity() {
         // One interface per tab, so every report the page makes carries which
         // tab it came from.
         page.addBridge("NoMercyMedia", mediaSession.pageInterfaceFor(tabId))
+
+        // Re-added on every rebuild: a renderer death takes the interfaces with
+        // it, and a form bridge missing from a rebuilt tab fails as silence.
+        page.formBridge?.let { bridge -> page.addBridge("NmForms", bridge) }
     }
 
     private fun loadThemeMode() = storeThread.execute {
@@ -624,6 +678,9 @@ class MainActivity : ComponentActivity() {
         // ladder, and dropping the keyboard closes the browser.
         mode = inputMode,
         isEditingText = editingText || isKeyboardShowing(),
+        // The page's own field, not ours. BACK releases it and stops there,
+        // which is what every native app on this platform does.
+        isPageFieldFocused = host?.formBridge?.focusedField != null,
     )
 
     /**
@@ -633,13 +690,50 @@ class MainActivity : ComponentActivity() {
      * Google app, which a stripped Android TV build may not carry — so the
      * absence is reported rather than crashing on a missing activity.
      */
-    private fun startVoiceInput() {
+    private fun startVoiceInput(target: VoiceTarget = VoiceTarget.Address) {
+        voiceTarget = target
+        val prompt: String = when (target) {
+            VoiceTarget.Address -> getString(R.string.nav_voice)
+            VoiceTarget.Field -> formField?.label?.ifBlank { null } ?: getString(R.string.form_voice)
+        }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.nav_voice))
+            putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
         }
         runCatching { voiceInput.launch(intent) }
             .onFailure { showMessage(getString(R.string.voice_unavailable)) }
+    }
+
+    /**
+     * Opens the native sheet for a field the viewer's own press focused.
+     *
+     * A select becomes a list and a text field becomes a native editor. Nothing
+     * else is offered: checkboxes and buttons are activated rather than typed
+     * into, and the page reports none of them.
+     */
+    private fun openField(field: FormField) {
+        formField = field
+        formValue = field.value
+        showChrome(if (field.kind == FieldKind.Select) ChromeSurface.Select else ChromeSurface.Form)
+    }
+
+    /**
+     * Writes what was typed back into the page and closes.
+     *
+     * The element is found by the id it was stamped with rather than by whatever
+     * holds focus now: opening the sheet took Android focus off the WebView, so
+     * `activeElement` is not a safe answer by the time this runs.
+     */
+    private fun commitField() {
+        val field: FormField = formField ?: return
+        host?.formBridge?.commit(field.id, formValue)
+        showChrome(ChromeSurface.None)
+    }
+
+    private fun chooseOption(optionIndex: Int) {
+        val field: FormField = formField ?: return
+        host?.formBridge?.select(field.id, optionIndex)
+        showChrome(ChromeSurface.None)
     }
 
     /**
@@ -745,6 +839,11 @@ class MainActivity : ComponentActivity() {
         val origin: String = HomeContent.originOf(url)
         if (origin.isEmpty()) return
 
+        // Changing what the site is told means asking it again, and a reload
+        // discards form state the same way memory pressure would. Said before it
+        // happens rather than discovered afterwards.
+        if (host?.hasDirtyForm == true) showMessage(getString(R.string.form_dirty_reload))
+
         desktopOrigins = if (origin in desktopOrigins) desktopOrigins - origin else desktopOrigins + origin
         showChrome(ChromeSurface.None)
         host?.setUserAgent(userAgentFor(url))
@@ -778,6 +877,14 @@ class MainActivity : ComponentActivity() {
         if (chrome == ChromeSurface.Permission && surface != ChromeSurface.Permission) {
             permissionAsk?.deny()
             permissionAsk = null
+        }
+
+        // Leaving a field sheet by any route other than committing discards what
+        // was typed, exactly as cancelling a native dialog does. The page keeps
+        // the value it already had.
+        if (chrome in FIELD_SURFACES && surface !in FIELD_SURFACES) {
+            formField = null
+            formValue = ""
         }
 
         chrome = surface
@@ -927,11 +1034,33 @@ class MainActivity : ComponentActivity() {
         }
 
         Command.Activate -> {
-            if (inputMode == InputMode.Focus) {
-                spatial.activate()
+            // A field already holding focus is the common case in focus mode:
+            // the spatial search focused it on the way in, so the page reported
+            // it long before this press and no new report is coming. Opening
+            // from what is focused rather than waiting for a focus is also what
+            // keeps OK on a select from opening the page's own dropdown, which
+            // is the widget a D-pad cannot operate.
+            val alreadyFocused: FormField? = host?.formBridge?.focusedField
+            if (alreadyFocused != null) {
+                openField(alreadyFocused)
             } else {
-                host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
+                // Recorded before the press lands. A field focus arriving
+                // shortly after this is the viewer's; one arriving on its own is
+                // the page focusing its own search box on load, and interrupting
+                // for that is what makes a browser raise a keyboard over every
+                // home page it opens.
+                host?.formBridge?.noteActivation()
+                if (inputMode == InputMode.Focus) {
+                    spatial.activate()
+                } else {
+                    host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
+                }
             }
+            true
+        }
+
+        Command.ReleasePageFocus -> {
+            host?.formBridge?.blurFocusedField()
             true
         }
 
@@ -1071,6 +1200,11 @@ class MainActivity : ComponentActivity() {
 
         val DIRECTIONS: Set<RemoteKey> =
             setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
+
+        /** The two surfaces that hold a web field's value. Moving between them
+         *  keeps it; leaving for anything else discards it. */
+        val FIELD_SURFACES: Set<ChromeSurface> =
+            setOf(ChromeSurface.Form, ChromeSurface.Select)
     }
 }
 
@@ -1096,6 +1230,12 @@ private fun BrowserScreen(
     onRemoveBookmark: (LibraryRow) -> Unit,
     permissionAsk: PermissionAsk?,
     onAnswerPermission: (Boolean, Boolean) -> Unit,
+    formField: FormField?,
+    formValue: String,
+    onFormValueChange: (String) -> Unit,
+    onCommitField: () -> Unit,
+    onChooseOption: (Int) -> Unit,
+    onFieldVoice: () -> Unit,
     onCloseSurface: () -> Unit,
     isFavourite: Boolean,
     onToggleFavourite: () -> Unit,
@@ -1342,6 +1482,29 @@ private fun BrowserScreen(
 
             ChromeSurface.Permission -> permissionAsk?.let { ask ->
                 PermissionPrompt(ask = ask, onAnswer = onAnswerPermission)
+            } ?: Unit
+
+            // Editing state lives on the activity rather than in here, because
+            // dictation launches a system activity and tears this composition
+            // down around it.
+            ChromeSurface.Form -> formField?.let { field ->
+                FormFieldOverlay(
+                    field = field,
+                    value = formValue,
+                    onValueChange = onFormValueChange,
+                    editing = editing,
+                    onEditingChange = onEditingChange,
+                    onCommit = onCommitField,
+                    onVoice = onFieldVoice,
+                )
+            } ?: Unit
+
+            ChromeSurface.Select -> formField?.let { field ->
+                SelectListSheet(
+                    field = field,
+                    onChoose = onChooseOption,
+                    onClose = onCloseSurface,
+                )
             } ?: Unit
         }
     }

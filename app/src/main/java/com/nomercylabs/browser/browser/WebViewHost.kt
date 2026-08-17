@@ -12,6 +12,7 @@ import android.webkit.WebView
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.nomercylabs.browser.forms.FormBridge
 import com.nomercylabs.browser.tabs.TabPage
 
 /**
@@ -70,6 +71,16 @@ class WebViewHost(initialView: WebView) : TabPage {
 
     override val pageUrl: String get() = state.url
     override val pageTitle: String get() = state.title
+
+    /**
+     * The tab's form bridge, attached by the activity because deciding what a
+     * focused field opens is the activity's job. Held here so the registry can
+     * ask one question — is this tab holding unsaved input — without knowing
+     * anything about forms.
+     */
+    var formBridge: FormBridge? = null
+
+    override val hasDirtyForm: Boolean get() = formBridge?.hasDirtyForm == true
 
     /**
      * The most recent saved state, captured continuously rather than when a tab

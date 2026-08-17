@@ -55,4 +55,12 @@
     <string name="menu_theme_system">Follow the TV</string>
     <string name="menu_theme_light">Light</string>
     <string name="menu_theme_dark">Dark</string>
+
+    <string name="form_field_generic">Type here</string>
+    <string name="form_done">Done</string>
+    <string name="form_voice">Speak into this field</string>
+    <string name="form_required">This one is required</string>
+    <string name="form_invalid">This page says that is not valid yet</string>
+    <string name="form_no_options">This list is empty</string>
+    <string name="form_dirty_reload">Reloading will discard what you typed</string>
 </resources>
