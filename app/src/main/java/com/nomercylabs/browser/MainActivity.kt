@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.runtime.withFrameMillis
+import com.nomercylabs.browser.browser.ExternalLink
 import com.nomercylabs.browser.browser.UrlOrSearch
 import com.nomercylabs.browser.browser.UserAgents
 import androidx.webkit.WebViewAssetLoader
@@ -308,6 +309,9 @@ class MainActivity : ComponentActivity() {
         pageContainer = FrameLayout(this)
 
         registry.open()
+        // A cold start from a link has one empty tab and nothing to protect, so
+        // the link takes it rather than opening a second one behind the first.
+        openExternalLink(intent, inNewTab = false)
         attachActivePage()
 
         setContent {
@@ -563,6 +567,39 @@ class MainActivity : ComponentActivity() {
         registry.active?.isHome = false
         host?.load(url)
         showChrome(ChromeSurface.None)
+    }
+
+    /**
+     * A link arriving while the browser is already up.
+     *
+     * `singleTask` means this activity is reused rather than recreated, so
+     * without this a shared link would raise the window and show whatever was
+     * already on screen — which is what it did, and which reads as the link
+     * being swallowed.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Kept, or a later getIntent() still reports the one we launched with.
+        setIntent(intent)
+        openExternalLink(intent, inNewTab = true)
+    }
+
+    /**
+     * [inNewTab] is the whole difference between a cold start and a warm one.
+     * Loading over the live tab would discard a page the viewer was reading and,
+     * worse, a form they were part way through — the one thing the registry
+     * refuses to do even under memory pressure.
+     */
+    private fun openExternalLink(intent: Intent?, inNewTab: Boolean) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val url: String = ExternalLink.resolve(intent.dataString) ?: return
+
+        if (inNewTab) {
+            registry.open()
+            attachActivePage()
+        }
+        openFromHome(url)
+        if (inNewTab) relievePressure()
     }
 
     private fun newTab() {

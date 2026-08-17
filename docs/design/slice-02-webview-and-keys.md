@@ -55,6 +55,16 @@ Cleartext pages are allowed. A browser that cannot open `http://` cannot reach a
 
 This is why the theme attribute was declared in `-v29` variants in slice 1 rather than left out.
 
+## Links from other apps
+
+A browser that no other app can hand a link to is an app that browses. The activity therefore declares a second intent filter for `VIEW` with `BROWSABLE` and `DEFAULT` over `http` and `https`, which is what puts it in the chooser and lets it be chosen as the device's web handler.
+
+Two rules sit behind that filter, and both were learned rather than assumed.
+
+The first is that an intent is not typed text. `UrlOrSearch` repairs what a person types, because a person who typed `example.org` meant a site and deserves the guess. `ExternalLink` repairs nothing: another app could have sent a real URL and did not, so anything that is not `http` or `https` with a host behind it is refused outright. `javascript:` arriving this way is self-XSS with nobody typing, `file:` and `content:` reach the device's own storage, and `data:` renders attacker-authored markup that inherits our address bar. The manifest filter already excludes all four, and they are refused a second time in code, because a manifest filter is a routing rule and not a security boundary.
+
+The second is where the link lands. A cold start has one empty tab and nothing to lose, so the link takes it. A link arriving while the browser is already up opens a new tab, because `singleTask` reuses this activity and loading over the live tab would discard a page being read or, worse, a form part way through. That is the same thing the registry refuses to do under memory pressure, and an intent should not be able to do what memory pressure cannot.
+
 ## Failure modes this slice must not ship
 
 1. **A blank screen with no explanation.** Load failures render an in-app error state, not an empty WebView.
@@ -73,3 +83,5 @@ This is why the theme attribute was declared in `-v29` variants in slice 1 rathe
 Unit tests cover every BACK branch and every mode transition, on the JVM, with no device.
 
 On the 8010 at `192.168.2.21`: load a real page, confirm it renders, confirm short BACK walks history and then exits, confirm long BACK is distinguishable from short. Driven with keycodes `19 20 21 22 23 4` only.
+
+For links from other apps, on the same box: `cmd package resolve-activity` names this activity as the device's web handler; an implicit `VIEW` from a cold start renders the page rather than the home screen; a second `VIEW` while running opens a new tab with the first one intact; and a `VIEW` carrying a refused scheme, sent straight at the component so the filter cannot do the work, leaves the browser on its home screen.

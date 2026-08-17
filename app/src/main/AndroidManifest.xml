@@ -63,6 +63,24 @@
                 <!-- Without LEANBACK_LAUNCHER the app installs and is invisible. -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+
+            <!--
+                What makes this a browser rather than an app that browses: a link
+                from any other app on the box can land here.
+
+                BROWSABLE is what puts us in the chooser at all, and DEFAULT is
+                what lets an implicit VIEW resolve to us. Only http and https are
+                declared, so file:, content:, javascript: and data: never reach
+                the activity from outside — ExternalLink refuses them a second
+                time, because a manifest filter is not a security boundary.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
         </activity>
     </application>
 
