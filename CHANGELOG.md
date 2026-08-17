@@ -6,7 +6,7 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
-## [2026.08.18]
+## [2026.08.17]
 
 Versions are dates from here on, and neither number is written by hand any
 more. The name is the date CI built it, which is what a tester can read off the
