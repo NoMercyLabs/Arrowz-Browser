@@ -145,8 +145,31 @@ class SpatialNavBridge(private val webView: () -> WebView?) {
         }
     }
 
-    fun activate() {
-        evaluate("window.__nmSpatial && window.__nmSpatial.activate()")
+    /**
+     * Presses the focused element with a real touch, falling back to the page's
+     * own activation when the position cannot be read.
+     *
+     * A synthetic event is untrusted and a control is allowed to ignore it.
+     * Measured on DuckDuckGo: ordinary links activated from this path while the
+     * menu — a `display:none` checkbox driven from its label's pointer events —
+     * never moved, whatever sequence was dispatched at it. A touch injected
+     * into the view is trusted, and it is the same mechanism the pointer has
+     * used since slice 3.
+     */
+    fun activate(onTap: (x: Float, y: Float) -> Unit) {
+        evaluateForResult("window.__nmSpatial && window.__nmSpatial.focusedRect()") { raw ->
+            val where: TapPoint? = raw?.let(PageSnapshotParser::parseTapPoint)
+            val view: WebView? = webView()
+            if (where == null || view == null || where.viewportWidth <= 0) {
+                evaluate("window.__nmSpatial && window.__nmSpatial.activate()")
+                return@evaluateForResult
+            }
+
+            // The page reports CSS pixels; the view is in device pixels, and on
+            // this platform the two differ by the whole device scale.
+            val scale: Float = view.width.toFloat() / where.viewportWidth
+            onTap(where.x * scale, where.y * scale)
+        }
     }
 
     /** A new page is a new set of sections. Carrying the old ones over sends

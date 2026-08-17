@@ -21,6 +21,10 @@ data class PageSnapshot(
     val hasModal: Boolean = false,
 )
 
+/** Where to press, in the page's own CSS pixels, with the viewport it was
+ *  measured against so the caller can scale it to the view. */
+data class TapPoint(val x: Int, val y: Int, val viewportWidth: Int, val viewportHeight: Int)
+
 /** A focusable, plus whether it is pinned to the viewport and which row or
  *  grid it belongs to. */
 data class PageFocusable(
@@ -88,6 +92,21 @@ object PageSnapshotParser {
             visible = root.optInt("visible"),
             viewportHeight = root.optInt("viewportHeight"),
             stealsFocus = root.optBoolean("stealsFocus"),
+        )
+    }
+
+    /** Empty when nothing is focused, which is a legitimate answer rather than
+     *  a failure: the caller falls back to the page's own activation. */
+    fun parseTapPoint(json: String): TapPoint? {
+        if (json.isEmpty()) return null
+        val root: JSONObject = runCatching { JSONObject(json) }.getOrNull() ?: return null
+        val width: Int = root.optInt("viewportWidth")
+        if (width <= 0) return null
+        return TapPoint(
+            x = root.optInt("x"),
+            y = root.optInt("y"),
+            viewportWidth = width,
+            viewportHeight = root.optInt("viewportHeight"),
         )
     }
 }

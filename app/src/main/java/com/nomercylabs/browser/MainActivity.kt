@@ -1071,7 +1071,11 @@ class MainActivity : ComponentActivity() {
                 // home page it opens.
                 host?.formBridge?.noteActivation()
                 if (inputMode == InputMode.Focus) {
-                    spatial.activate()
+                    spatial.activate { x, y ->
+                        host?.view?.let { view ->
+                            TouchSynthesizer.tap(view, CursorPosition(x, y))
+                        }
+                    }
                 } else {
                     host?.view?.let { view -> TouchSynthesizer.tap(view, cursor.position()) }
                 }

@@ -323,15 +323,29 @@
     return null;
   }
 
+  /**
+   * Takes the ring off everything wearing any part of it.
+   *
+   * The class and the attribute are applied together and can be removed
+   * separately: a re-render rewrites `class` and leaves our attribute behind,
+   * so looking for the class alone missed that element and it kept the marker
+   * forever. Two elements then answered to `[data-nm-spatial-ring]`, one of
+   * them a ghost, and anything reading the ring to find out where focus was got
+   * whichever came first in the document.
+   */
+  function stripRingEverywhere() {
+    var marked = document.querySelectorAll('.' + RING_CLASS + ',[' + RING_ATTRIBUTE + ']');
+    for (var index = 0; index < marked.length; index++) {
+      marked[index].classList.remove(RING_CLASS);
+      marked[index].removeAttribute(RING_ATTRIBUTE);
+    }
+  }
+
   function focusById(id) {
     var element = find(id);
     if (!element) return false;
 
-    var previous = document.querySelector('.' + RING_CLASS);
-    if (previous) {
-      previous.classList.remove(RING_CLASS);
-      previous.removeAttribute(RING_ATTRIBUTE);
-    }
+    stripRingEverywhere();
 
     element.classList.add(RING_CLASS);
     element.setAttribute(RING_ATTRIBUTE, '');
@@ -393,9 +407,26 @@
 
     try { element.focus({ preventScroll: true }); } catch (error) { /* not focusable */ }
 
-    ['mouseup', 'pointerup', 'click'].forEach(function (type) {
-      dispatchPress(element, type, type === 'click' ? options : options);
+    ['mouseup', 'pointerup'].forEach(function (type) {
+      dispatchPress(element, type, options);
     });
+
+    // The press ends with a real activation, not a dispatched click event.
+    // click() runs the behaviour the element defines — an anchor following its
+    // href, a button submitting — where a dispatched event only notifies
+    // listeners.
+    //
+    // A label activates its control, which is what the platform says a label is
+    // for, and clicking the label element itself is not reliably the same
+    // thing: measured on DuckDuckGo's menu, whose hamburger is a
+    // <label for="sidemenu-toggle"> over a hidden checkbox. Clicking the label
+    // left the checkbox untouched and the drawer shut; clicking the control it
+    // names opens it. Generic to every label-and-control pair, which is most of
+    // the switches and radio groups on the web.
+    var control = element.tagName.toLowerCase() === 'label'
+      ? (element.control || (element.htmlFor ? document.getElementById(element.htmlFor) : null))
+      : null;
+    (control || element).click();
     return true;
   }
 
@@ -482,8 +513,32 @@
     return true;
   }
 
+  /**
+   * Where the focused element is, so the app can press it with a real touch.
+   *
+   * Synthetic events are untrusted, and a control can tell. DuckDuckGo's menu
+   * is a `display:none` checkbox driven from the label's pointer events, and no
+   * event this file can create will move it — measured, repeatedly, while
+   * ordinary links activated from the same code path. A touch injected into the
+   * view is a trusted event, which is what the pointer already uses, so focus
+   * mode borrows it. Coordinates are CSS pixels; the caller scales them.
+   */
+  function focusedRect() {
+    var element = focusedByUs ? find(focusedByUs) : document.querySelector('[' + RING_ATTRIBUTE + ']');
+    if (!element) return '';
+    var box = element.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return '';
+    return JSON.stringify({
+      x: Math.round(box.left + box.width / 2),
+      y: Math.round(box.top + box.height / 2),
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    });
+  }
+
   window.__nmSpatial = {
     collect: function () { return JSON.stringify(collect()); },
+    focusedRect: focusedRect,
     hasModal: function () { return openModal() ? 'true' : 'false'; },
     dismissModal: dismissModal,
     probe: function () { return JSON.stringify(probe()); },
@@ -500,10 +555,8 @@
      */
     clear: function () {
       var element = focusedByUs ? find(focusedByUs) : null;
-      if (!element) element = document.querySelector('.' + RING_CLASS);
+      stripRingEverywhere();
       if (element) {
-        element.classList.remove(RING_CLASS);
-        element.removeAttribute(RING_ATTRIBUTE);
         try { element.blur(); } catch (error) { /* already gone */ }
       }
       focusedByUs = '';
