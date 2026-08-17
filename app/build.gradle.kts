@@ -15,6 +15,12 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        // A hold on BACK cannot be reproduced from adb: --longpress sets the
+        // framework flag and takes a path that already worked, and sendevent
+        // needs root retail hardware does not give. An instrumented test can
+        // deliver the exact sequence a remote sends, so one exists.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         // No abiFilters and no splits: the app ships zero native code, so one
         // artifact runs on every processor Android TV uses.
     }
@@ -74,4 +80,11 @@ dependencies {
     // every method. The real implementation is the same API, so the parser under
     // test is the one that ships rather than a rewrite that avoids the stub.
     testImplementation(libs.json)
+
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
