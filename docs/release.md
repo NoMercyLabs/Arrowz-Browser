@@ -79,12 +79,9 @@ a second copy in a downloads folder is a second thing that can leak.
 name, and re-running a tag replays the workflow as it stood at that tag rather
 than as it stands now, so it would also name its artifacts `nomercy-browser-*`.
 
-The rename therefore needs a new tag rather than a re-run:
-
-```
-git tag v0.1.1
-git push origin v0.1.1
-```
+The rename therefore needs a new tag rather than a re-run. `v0.1.1` is cut, and
+publishes to GitHub whether or not the Play secret exists: without it the upload
+step warns on the run page and in the job summary rather than passing silently.
 
 ## What a tag produces
 

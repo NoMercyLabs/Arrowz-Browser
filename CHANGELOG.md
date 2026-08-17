@@ -6,6 +6,25 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-17
+
+### Added
+
+Home screen tiles draw the site's own mark. The page reports the icon it
+declares, it is fetched once per site and kept, and the two letters are left for
+sites that offer nothing drawable.
+
+The menu has one level of submenus - This site, Library, Settings and About -
+with find, a new tab and closing a tab kept on the top level. Open tabs, the
+home screen and reload were dropped from it, since each has a button in the
+address bar.
+
+Downloads, a search engine choice across four engines, a site permission list
+that can be revoked, and clearing browsing data in four separate parts.
+
+An instrumented test source set, covering the one defect no other tool here can
+reach.
+
 ### Changed
 
 The product is now **Arrowz Browser**, named and drawn by a designer, and the
@@ -39,7 +58,25 @@ dimmed, and the subtitle reaches 5.57:1.
 A television app installed itself on phones. `uses-feature leanback` is Play
 Store distribution metadata and the platform installer never reads it, so
 `deploy.sh` put the browser on every connected device. It targets leanback
-devices only now, and names what it skips.
+devices only now, and names what it skips. A deploy also could not say which
+devices had received the build it just made, and now compares the installed
+bytes against the build on every one of them.
+
+A held BACK never registered as a hold. BACK carries no long-press flag on the
+path this app takes and does not auto-repeat, so both routes a hold could be
+recognised by were absent and every hold arrived as an ordinary press, leaving
+the menu unreachable from the remote. It is timed from the press now.
+
+A tap of a direction moved the pointer nowhere. The pointer advances on a frame
+and a tap is over before one runs, so the most-used key in cursor mode did
+nothing on a short press. That is also what made the address bar unreachable on
+some pages, since revealing it wants the pointer against the top edge.
+
+A consent dialog made theguardian.com unnavigable, reaching one of twenty-five
+focusables. A frame is never a focus stop now, and the mode ladder makes one
+downgrade when focus is inside one.
+
+Clearing browsing data ran and said nothing on screen.
 
 Spatial navigation reached three links on an article and stopped. Four separate
 causes: the sentinel for "no section" was being treated as a section, so a whole

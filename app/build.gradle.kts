@@ -12,8 +12,8 @@ android {
         applicationId = "com.nomercylabs.arrowz"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
 
         // A hold on BACK cannot be reproduced from adb: --longpress sets the
         // framework flag and takes a path that already worked, and sendevent
