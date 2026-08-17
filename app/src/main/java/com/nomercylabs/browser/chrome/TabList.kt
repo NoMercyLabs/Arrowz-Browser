@@ -80,6 +80,11 @@ fun TabList(
                     // The list opens standing on the tab you are already
                     // looking at, so OK is always a return rather than a jump.
                     requestInitialFocus = tab.id == activeId,
+                    // Which tab is on screen is drawn as a coloured bar and read
+                    // as nothing, so a reader hears a list of pages with no way
+                    // to tell which one is behind the list.
+                    roleDescription = stringResource(R.string.a11y_role_tab),
+                    selectedDescription = stringResource(R.string.a11y_selected),
                 ) {
                     IconButton(
                         contentDescription = stringResource(R.string.tabs_close),

@@ -48,7 +48,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -198,7 +201,12 @@ fun IconButton(
             .raised(RoundedCornerShape(Tokens.Radius))
             .background(focusFill(focused), RoundedCornerShape(Tokens.Radius))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .semantics { this.contentDescription = description },
+            // A glyph has no text for a reader to fall back on, so without the
+            // role this is an unlabelled image rather than something to press.
+            .semantics {
+                this.contentDescription = description
+                role = Role.Button
+            },
         contentAlignment = Alignment.Center,
     ) {
         glyph(contentOn(focused))
@@ -335,6 +343,13 @@ fun ListRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** What this row is, spoken. Left empty where the row's own text already
+     *  says it, and supplied where the meaning is carried by position — a tab in
+     *  a tab list reads as loose text otherwise. */
+    roleDescription: String = "",
+    /** Spoken for the row the rest of the screen is currently showing. Selection
+     *  is drawn as a coloured bar, which conveys nothing to a reader. */
+    selectedDescription: String = "",
     requestInitialFocus: Boolean = false,
     /** Drawn a step brighter than the surrounding chrome, for a row proposing
      *  something rather than one listing what already exists. */
@@ -390,6 +405,22 @@ fun ListRow(
                     indication = null,
                     onClick = onClick,
                 )
+                .semantics {
+                    role = Role.Button
+                    this.selected = selected
+                    // Spoken as one description rather than as separate nodes.
+                    // Compose has no role-description property, and a reader that
+                    // stops on each part reads a tab list as four disconnected
+                    // fragments instead of one sentence.
+                    contentDescription = listOf(
+                        roleDescription,
+                        title,
+                        subtitle,
+                        if (selected) selectedDescription else "",
+                    )
+                        .filter { part -> part.isNotEmpty() }
+                        .joinToString(SPOKEN_SEPARATOR)
+                }
                 .padding(horizontal = Tokens.SpaceMd, vertical = Tokens.SpaceSm),
         ) {
             BasicText(
@@ -451,7 +482,10 @@ fun SiteTile(
             .onFocusChanged { focused = it.isFocused }
             .tvFocusable(focused, drawRing = false)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .semantics { contentDescription = label }
+            .semantics {
+                contentDescription = label
+                role = Role.Button
+            }
             // Inside the focus ring, so the growth on focus has somewhere to go
             // and the title is not clipped by the tile's own edge.
             .padding(Tokens.SpaceXs),
@@ -560,6 +594,10 @@ private const val MUTED_ON_ACCENT: Float = 0.75f
  *  be showing behind it, and only the last sliver of transparency says there is
  *  a page there at all. */
 private const val HEADER_ALPHA: Float = 0.97f
+
+/** A comma is what makes a reader pause between the parts rather than running
+ *  a title straight into a subtitle as one sentence. */
+private const val SPOKEN_SEPARATOR: String = ", "
 
 /** What a password reads as while it is not being edited. */
 private const val MASK: String = "•"

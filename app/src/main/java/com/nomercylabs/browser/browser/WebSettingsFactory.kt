@@ -20,8 +20,13 @@ import androidx.webkit.WebViewFeature
  */
 object WebSettingsFactory {
 
-    fun apply(webView: WebView, userAgent: String, isDarkTheme: Boolean) {
+    fun apply(webView: WebView, userAgent: String, isDarkTheme: Boolean, textZoomPercent: Int = 100) {
         val settings: WebSettings = webView.settings
+
+        // The system font scale, which a page cannot see for itself. Text rather
+        // than page zoom: page zoom scales layout with it and produces sideways
+        // scrolling, and sideways is the axis a D-pad handles worst.
+        settings.textZoom = textZoomPercent
 
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true

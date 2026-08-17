@@ -8,8 +8,10 @@ package com.nomercylabs.browser
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.view.accessibility.CaptioningManager
 import android.net.Uri
 import android.os.Environment
 import android.speech.RecognizerIntent
@@ -18,6 +20,13 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.ui.res.stringResource
+import com.nomercylabs.browser.a11y.A11yMode
+import com.nomercylabs.browser.a11y.Announcer
+import com.nomercylabs.browser.a11y.CaptionStyles
+import com.nomercylabs.browser.a11y.ScreenReaderWatch
+import com.nomercylabs.browser.a11y.TextScale
+import com.nomercylabs.browser.browser.PageError
+import com.nomercylabs.browser.browser.asJsString
 import com.nomercylabs.browser.chrome.FindBar
 import com.nomercylabs.browser.chrome.LibraryRow
 import com.nomercylabs.browser.chrome.LibraryScreen
@@ -156,6 +165,13 @@ class MainActivity : ComponentActivity() {
 
     /** Cursor or focus. Never both: exactly one system may consume a key. */
     private var inputMode: InputMode by mutableStateOf(InputMode.Cursor)
+
+    private lateinit var screenReader: ScreenReaderWatch
+
+    private val announcer = Announcer(
+        isActive = { screenReader.isActive },
+        speak = { text -> pageContainer.announceForAccessibility(text) },
+    )
 
     private val spatial = SpatialNavBridge { host?.view }
 
@@ -308,6 +324,11 @@ class MainActivity : ComponentActivity() {
 
         pageContainer = FrameLayout(this)
 
+        // Started before the first tab exists, so the first page never renders a
+        // pointer over a reader that was already running when the app launched.
+        screenReader = ScreenReaderWatch(this) { active -> screenReaderChanged(active) }
+        screenReader.start()
+
         registry.open()
         // A cold start from a link has one empty tab and nothing to protect, so
         // the link takes it rather than opening a second one behind the first.
@@ -324,7 +345,10 @@ class MainActivity : ComponentActivity() {
                     cursor = cursor,
                     page = host?.state ?: emptyPage,
                     chrome = chrome,
-                    focusMode = inputMode == InputMode.Focus,
+                    // Anything but the pointer hides the pointer. A screen reader
+                    // draws its own highlight, and two of them on one screen
+                    // means every press appears to do two things.
+                    focusMode = inputMode != InputMode.Cursor,
                     editing = editingText,
                     onEditingChange = { value -> editingText = value },
                     cursorMoving = cursorMoving,
@@ -413,11 +437,20 @@ class MainActivity : ComponentActivity() {
             // the rest of its life.
             page.formBridge?.forgetPage()
             chooseInputMode(url)
+            // A new document, so whatever was last said describes a page that is
+            // no longer on screen and must not suppress an identical sentence
+            // about this one.
+            announcer.forgetLast()
             val title: String = page.pageTitle
             storeThread.execute {
                 store.recordVisit(url, title)
                 publishLibrary()
             }
+        }
+
+        page.onLoaded { url ->
+            applyCaptionStyles(page)
+            announcePage(page, url)
         }
 
         page.onRendererDeath {
@@ -446,10 +479,12 @@ class MainActivity : ComponentActivity() {
                 fullscreen.enter(view, callback)
             },
             onExitFullscreen = { fullscreen.exit() },
+            textZoomPercent = TextScale.zoomPercent(resources.configuration.fontScale),
             scriptsAtDocumentStart = listOf(
                 readAsset("mediasession-shim.js"),
                 readAsset("spatialnav.js"),
                 readAsset("formbridge.js"),
+                readAsset("captions.js"),
             ),
             assetLoader = if (BuildConfig.DEBUG) {
                 WebViewAssetLoader.Builder()
@@ -607,6 +642,7 @@ class MainActivity : ComponentActivity() {
         registry.active?.isHome = true
         attachActivePage()
         showChrome(ChromeSurface.None)
+        announcer.announce(getString(R.string.a11y_tab_opened))
         relievePressure()
     }
 
@@ -614,6 +650,17 @@ class MainActivity : ComponentActivity() {
         registry.activate(id)
         attachActivePage()
         showChrome(ChromeSurface.None)
+        // Switching tabs replaces everything on screen and says nothing. The
+        // page behind the list is the one fact that makes the switch legible.
+        announcer.announce(
+            getString(
+                R.string.a11y_tab_switched,
+                Announcer.nameFor(
+                    host?.pageTitle.orEmpty(),
+                    HomeContent.originOf(host?.state?.url.orEmpty()),
+                ),
+            ),
+        )
         relievePressure()
     }
 
@@ -683,6 +730,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         storeThread.shutdown()
         mediaSession.destroy()
+        screenReader.stop()
     }
 
     /** Kept as one place for later slices to hang background audio off. */
@@ -1169,6 +1217,60 @@ class MainActivity : ComponentActivity() {
         ThemeMode.Light -> false
     }
 
+    /**
+     * A screen reader arrived or left.
+     *
+     * The generation bump is the important half. A probe scheduled before the
+     * reader arrived would otherwise answer afterwards and hand the page back to
+     * our own search, and two focus systems would be walking the same tree.
+     */
+    private fun screenReaderChanged(active: Boolean) {
+        val next: InputMode = A11yMode.modeFor(active, inputMode)
+        modeProbeGeneration++
+        if (next != inputMode) setInputMode(next, remember = false)
+    }
+
+    /**
+     * The television's caption preferences, as a `::cue` rule.
+     *
+     * Applied per document rather than once, because a page replaces the
+     * stylesheet along with everything else, and re-applied when the preference
+     * changes while a page is open.
+     */
+    private fun applyCaptionStyles(page: WebViewHost) {
+        val captioning: CaptioningManager? =
+            getSystemService(Context.CAPTIONING_SERVICE) as? CaptioningManager
+        val style: CaptioningManager.CaptionStyle? = captioning?.userStyle
+        val css: String = CaptionStyles.css(
+            enabled = captioning?.isEnabled == true,
+            captionFontScale = captioning?.fontScale ?: 1f,
+            userFontScale = resources.configuration.fontScale,
+            foregroundArgb = style?.takeIf { it.hasForegroundColor() }?.foregroundColor,
+            backgroundArgb = style?.takeIf { it.hasBackgroundColor() }?.backgroundColor,
+            edgeType = style?.takeIf { it.hasEdgeType() }?.edgeType ?: CaptionStyles.EDGE_NONE,
+            edgeArgb = style?.takeIf { it.hasEdgeColor() }?.edgeColor,
+        )
+        page.view?.evaluateJavascript(
+            "window.__nmCaptions && window.__nmCaptions.apply(${css.asJsString()})",
+            null,
+        )
+    }
+
+    /** A page finishing is a visual event with no announcement of its own, and a
+     *  page that failed has no title to announce, which is when it matters most. */
+    private fun announcePage(page: WebViewHost, url: String) {
+        val name: String = Announcer.nameFor(page.pageTitle, HomeContent.originOf(url))
+        if (name.isEmpty()) return
+        val error: PageError? = page.state.error
+        announcer.announce(
+            if (error != null) {
+                getString(R.string.a11y_page_failed, name)
+            } else {
+                getString(R.string.a11y_page_loaded, name)
+            },
+        )
+    }
+
     private fun setInputMode(mode: InputMode, remember: Boolean) {
         inputMode = mode
         cursor.releaseAll()
@@ -1201,6 +1303,14 @@ class MainActivity : ComponentActivity() {
      * there is one, and otherwise whatever the page's own shape argues for.
      */
     private fun chooseInputMode(url: String) {
+        // Above the remembered override deliberately. Per-site memory is a
+        // convenience; a reader running right now is not, and a site remembered
+        // as focus mode must not drag our search over the top of it.
+        if (!A11yMode.mayChooseMode(screenReader.isActive)) {
+            setInputMode(InputMode.ScreenReader, remember = false)
+            return
+        }
+
         val origin: String = HomeContent.originOf(url)
         val generation: Int = ++modeProbeGeneration
         storeThread.execute {
@@ -1248,6 +1358,9 @@ class MainActivity : ComponentActivity() {
             if (generation != modeProbeGeneration) return@postDelayed
             spatial.probe { page ->
                 if (generation != modeProbeGeneration) return@probe
+                // Checked when the answer lands, not only when it was asked for.
+                // A reader can arrive during the three seconds this ladder spans.
+                if (!A11yMode.mayChooseMode(screenReader.isActive)) return@probe
                 when {
                     page != null && NavigabilityProbe.prefersFocusMode(page) ->
                         setInputMode(InputMode.Focus, remember = false)

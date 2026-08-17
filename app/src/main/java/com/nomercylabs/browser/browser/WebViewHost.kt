@@ -99,11 +99,15 @@ class WebViewHost(initialView: WebView) : TabPage {
     private var rebuild: ((Bundle, String) -> WebView)? = null
     private var rendererDeathListener: (() -> Unit)? = null
     private var navigationListener: ((String) -> Unit)? = null
+    private var loadedListener: ((String) -> Unit)? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(
         userAgent: String,
         isDarkTheme: Boolean,
+        /** The television's font scale, carried into the page. 100 is the
+         *  page's own size, which is what an unchanged system setting means. */
+        textZoomPercent: Int = 100,
         onEnterFullscreen: (android.view.View, android.webkit.WebChromeClient.CustomViewCallback) -> Unit,
         onExitFullscreen: () -> Unit,
         assetLoader: androidx.webkit.WebViewAssetLoader? = null,
@@ -117,7 +121,7 @@ class WebViewHost(initialView: WebView) : TabPage {
             { _, _, _, _ -> },
     ) {
         val target: WebView = view ?: return
-        WebSettingsFactory.apply(target, userAgent, isDarkTheme)
+        WebSettingsFactory.apply(target, userAgent, isDarkTheme, textZoomPercent)
 
         target.webViewClient = NmWebViewClient(
             onPageStateChanged = { url, canGoBack ->
@@ -141,6 +145,7 @@ class WebViewHost(initialView: WebView) : TabPage {
             onProgress = { progress ->
                 state.progress = progress
                 refreshScrollPosition()
+                if (progress >= COMPLETE) loadedListener?.invoke(state.url)
             },
             onTitle = { title -> state.title = title },
             onEnterFullscreen = onEnterFullscreen,
@@ -209,6 +214,13 @@ class WebViewHost(initialView: WebView) : TabPage {
     /** Every committed navigation, which is what a visit count is counting. */
     fun onNavigated(listener: (url: String) -> Unit) {
         navigationListener = listener
+    }
+
+    /** Fires when the page reaches full progress, which is the moment its title
+     *  is real rather than the previous document's. Can fire more than once for
+     *  one document, so a listener must tolerate a repeat. */
+    fun onLoaded(listener: (url: String) -> Unit) {
+        loadedListener = listener
     }
 
     /**
@@ -328,6 +340,7 @@ class WebViewHost(initialView: WebView) : TabPage {
 
     private companion object {
         const val RENDERER_GONE: Int = -1101
+        const val COMPLETE: Int = 100
 
         /**
          * A few pixels of slack. Momentum scrolling frequently settles at 1 or 2

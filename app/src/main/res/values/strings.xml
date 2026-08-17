@@ -63,4 +63,13 @@
     <string name="form_invalid">This page says that is not valid yet</string>
     <string name="form_no_options">This list is empty</string>
     <string name="form_dirty_reload">Reloading will discard what you typed</string>
+
+    <!-- Spoken by a screen reader, never drawn. Each one names a change that is
+         obvious on screen and silent otherwise. -->
+    <string name="a11y_page_loaded">%1$s loaded</string>
+    <string name="a11y_page_failed">%1$s did not load</string>
+    <string name="a11y_tab_opened">New tab</string>
+    <string name="a11y_tab_switched">Showing %1$s</string>
+    <string name="a11y_role_tab">Tab</string>
+    <string name="a11y_selected">Showing now</string>
 </resources>

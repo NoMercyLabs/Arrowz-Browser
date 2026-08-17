@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import com.nomercylabs.browser.browser.asJsString
 
 /**
  * Native form editing, page side to app side.
@@ -118,35 +119,5 @@ class FormBridge(
 
     private fun evaluate(script: String) {
         webView()?.evaluateJavascript(script, null)
-    }
-
-    private companion object {
-        /**
-         * JavaScript ends a string literal on these two as well as on a newline,
-         * and text copied out of a web page carries them where nothing visible
-         * suggests a break at all. Built from their code points rather than
-         * written out, because both are invisible in a source file and a reader
-         * cannot tell a broken escape from a working one.
-         */
-        private val LINE_SEPARATOR: String = Char(0x2028).toString()
-        private val PARAGRAPH_SEPARATOR: String = Char(0x2029).toString()
-
-        /**
-         * A value goes into a script as a literal, so anything the viewer can
-         * type has to survive being one. A quote or a newline dictated into a
-         * field would otherwise end the string and run whatever followed as
-         * code, in the page's own origin.
-         */
-        fun String.asJsString(): String {
-            val escaped: String = this
-                .replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace(LINE_SEPARATOR, "\\u2028")
-                .replace(PARAGRAPH_SEPARATOR, "\\u2029")
-            return "'$escaped'"
-        }
     }
 }
