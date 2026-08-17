@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 2026 NoMercy Labs
+  SPDX-License-Identifier: MIT
+
+  Every input type a page can put in front of somebody holding a remote, on one
+  page, so spatial navigation and the native form overlay are tested against the
+  whole surface rather than against whichever field a site happened to use.
+
+  Debug builds only. Served over a real https origin by the asset loader, so it
+  is subject to the same rules a real site is rather than being a file:// page
+  with different behaviour.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Form and navigation test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      background: #101014;
+      color: #f2f2f5;
+      font: 16px/1.5 system-ui, sans-serif;
+      margin: 0;
+      padding: 24px 40px 80px;
+    }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.note { color: #9a9aa6; margin: 0 0 20px; }
+    fieldset {
+      border: 1px solid #2a2a33;
+      border-radius: 8px;
+      margin: 0 0 16px;
+      padding: 12px 16px 16px;
+    }
+    legend { color: #8ca3b8; padding: 0 6px; }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; }
+    .cell { display: flex; flex-direction: column; min-width: 200px; }
+    label { color: #9a9aa6; font-size: 13px; margin-bottom: 4px; }
+    input, select, textarea, button {
+      background: #16161c;
+      border: 1px solid #2a2a33;
+      border-radius: 6px;
+      color: inherit;
+      font: inherit;
+      padding: 8px 10px;
+    }
+    textarea { min-height: 60px; }
+    /* Deliberately no :focus style at all. A site that removes its own focus
+       ring is the common case, and the browser's injected ring is what has to
+       carry it. */
+    :focus { outline: none; }
+    .inline { align-items: center; display: flex; gap: 8px; }
+    #report {
+      background: #16161c;
+      border-radius: 8px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      margin-top: 20px;
+      padding: 12px 16px;
+      white-space: pre-wrap;
+    }
+    .wide { min-width: 100%; }
+  </style>
+</head>
+<body>
+  <h1>Form and navigation test</h1>
+  <p class="note">Every field type on one page. Nothing here styles its own focus.</p>
+
+  <fieldset>
+    <legend>Text-shaped, one per keyboard the overlay can raise</legend>
+    <div class="row">
+      <span class="cell"><label for="f-text">Plain text</label>
+        <input id="f-text" type="text" placeholder="anything"></span>
+      <span class="cell"><label for="f-email">Email</label>
+        <input id="f-email" type="email" placeholder="you@example.org"></span>
+      <span class="cell"><label for="f-number">Number</label>
+        <input id="f-number" type="number" min="0" max="99"></span>
+      <span class="cell"><label for="f-tel">Telephone</label>
+        <input id="f-tel" type="tel"></span>
+      <span class="cell"><label for="f-url">Address</label>
+        <input id="f-url" type="url"></span>
+      <span class="cell"><label for="f-password">Password</label>
+        <input id="f-password" type="password"></span>
+      <span class="cell"><label for="f-search">Search</label>
+        <input id="f-search" type="search"></span>
+      <span class="cell"><label for="f-required">Required</label>
+        <input id="f-required" type="text" required></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Not typed at all</legend>
+    <div class="row">
+      <span class="cell"><label for="f-select">Select</label>
+        <select id="f-select">
+          <option value="">Pick one</option>
+          <option value="a">Amsterdam</option>
+          <option value="b">Berlin</option>
+          <option value="c">Copenhagen</option>
+          <option value="d">Dublin</option>
+        </select></span>
+      <span class="cell"><label for="f-multi">Select, multiple</label>
+        <select id="f-multi" multiple size="3">
+          <option value="x">First</option>
+          <option value="y">Second</option>
+          <option value="z">Third</option>
+        </select></span>
+      <span class="cell inline">
+        <input id="f-check" type="checkbox"><label for="f-check">Checkbox</label></span>
+      <span class="cell inline">
+        <input id="f-radio-1" type="radio" name="pick" value="1"><label for="f-radio-1">Radio one</label>
+        <input id="f-radio-2" type="radio" name="pick" value="2"><label for="f-radio-2">Radio two</label></span>
+      <span class="cell"><label for="f-range">Range</label>
+        <input id="f-range" type="range" min="0" max="10"></span>
+      <span class="cell"><label for="f-color">Color</label>
+        <input id="f-color" type="color"></span>
+      <span class="cell"><label for="f-date">Date</label>
+        <input id="f-date" type="date"></span>
+      <span class="cell"><label for="f-time">Time</label>
+        <input id="f-time" type="time"></span>
+      <span class="cell"><label for="f-file">File</label>
+        <input id="f-file" type="file"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Long-form and page-built controls</legend>
+    <div class="row">
+      <span class="cell wide"><label for="f-textarea">Textarea</label>
+        <textarea id="f-textarea"></textarea></span>
+      <span class="cell wide"><label for="f-editable">Contenteditable</label>
+        <div id="f-editable" contenteditable="true"
+             style="border:1px solid #2a2a33;border-radius:6px;min-height:44px;padding:8px 10px"></div></span>
+      <span class="cell"><label>Div acting as a button</label>
+        <div id="f-fakebutton" role="button" tabindex="0"
+             style="border:1px solid #2a2a33;border-radius:6px;padding:8px 10px;text-align:center">Press me</div></span>
+      <span class="cell"><label>Label wrapping a hidden checkbox</label>
+        <label id="f-hiddencheck" for="f-hidden"
+               style="border:1px solid #2a2a33;border-radius:6px;padding:8px 10px;text-align:center">Toggle</label>
+        <input id="f-hidden" type="checkbox" style="display:none"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Ordinary targets</legend>
+    <div class="row">
+      <span class="cell"><button id="f-button" type="button">Button</button></span>
+      <span class="cell"><a id="f-link" href="#bottom">Anchor link</a></span>
+      <span class="cell"><button id="f-submit" type="submit">Submit</button></span>
+    </div>
+  </fieldset>
+
+  <div id="report">nothing yet</div>
+  <a id="bottom"></a>
+
+  <script>
+    // What every control currently holds, read from the DOM rather than from
+    // anything the overlay believes, so the assertion is about the page.
+    function state() {
+      var out = {};
+      ['f-text','f-email','f-number','f-tel','f-url','f-password','f-search',
+       'f-required','f-select','f-textarea','f-range','f-color','f-date','f-time']
+        .forEach(function (id) { out[id] = document.getElementById(id).value; });
+      out['f-check'] = document.getElementById('f-check').checked;
+      out['f-radio'] = (document.querySelector('input[name=pick]:checked') || {}).value || '';
+      out['f-hidden'] = document.getElementById('f-hidden').checked;
+      out['f-editable'] = document.getElementById('f-editable').textContent;
+      out['f-multi'] = Array.prototype.slice
+        .call(document.getElementById('f-multi').selectedOptions)
+        .map(function (option) { return option.value; }).join(',');
+      out['presses'] = window.__presses || 0;
+      out['events'] = window.__events || [];
+      return out;
+    }
+    window.formState = function () { return JSON.stringify(state()); };
+
+    window.__presses = 0;
+    window.__events = [];
+    ['f-button', 'f-fakebutton', 'f-submit'].forEach(function (id) {
+      document.getElementById(id).addEventListener('click', function () {
+        window.__presses++;
+        window.__events.push(id);
+        document.getElementById('report').textContent = window.__events.join(' ');
+      });
+    });
+    document.getElementById('f-hidden').addEventListener('change', function () {
+      window.__events.push('f-hidden:' + this.checked);
+    });
+    document.getElementById('f-check').addEventListener('change', function () {
+      window.__events.push('f-check:' + this.checked);
+    });
+    // input and change are what page code listens for; the overlay has to
+    // dispatch both or a framework never sees the value it was given.
+    ['input', 'change'].forEach(function (type) {
+      document.addEventListener(type, function (event) {
+        if (event.target.id) window.__events.push(type + ':' + event.target.id);
+      }, true);
+    });
+    document.querySelector('form') === null && document.body.addEventListener('submit',
+      function (event) { event.preventDefault(); });
+  </script>
+</body>
+</html>

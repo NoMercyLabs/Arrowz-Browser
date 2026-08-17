@@ -205,12 +205,25 @@
       }
     }
 
+    // A label whose control is itself a stop is not a second stop. On an
+    // ordinary form every field then costs two presses instead of one, and the
+    // caption above a box is a place the ring can sit while doing nothing the
+    // box does not already do. Measured on a page of one-of-every-input: 45
+    // reported focusables where 27 were real controls.
+    var reachable = {};
+    for (var reachableIndex = 0; reachableIndex < results.length; reachableIndex++) {
+      var candidate = elements[results[reachableIndex].elementIndex];
+      if (candidate && candidate.id) reachable[candidate.id] = true;
+    }
+
     return results.filter(function (entry) {
       var target = elements[entry.elementIndex];
       var names = target && target.tagName.toLowerCase() === 'label'
         ? target.getAttribute('for')
         : null;
-      return !names || bestFor[names].id === entry.id;
+      if (!names) return true;
+      if (reachable[names]) return false;
+      return bestFor[names].id === entry.id;
     });
   }
 
@@ -300,8 +313,38 @@
         section: sectionOf(element)
       });
     }
+    var collected = dropDuplicateLabels(results, elements);
+
+    /**
+     * The source has to be an element the search will also see.
+     *
+     * Reporting the ring instead of `document.activeElement` is right — a text
+     * field wears the ring without taking DOM focus, so the keyboard stays down
+     * — but reporting a ring that is no longer in the collected set is worse
+     * than reporting nothing. The Kotlin side looks the id up among the
+     * candidates, does not find it, and falls back to a 1x1 rectangle at the
+     * top-left corner, so the next press is measured from a place nobody is
+     * standing. Measured as a walk that reached five controls out of
+     * twenty-five and jumped across the page between them.
+     */
+    var present = {};
+    for (var presentIndex = 0; presentIndex < collected.length; presentIndex++) {
+      present[collected[presentIndex].id] = true;
+    }
+    // The DOM's focus first, and the ring only when the DOM has none.
+    //
+    // The other way round was tried and reverted the same evening: reporting
+    // the ring as the source made every direction dead from the first field,
+    // because Kotlin then had a real section for the source and section memory
+    // resolved the move straight back onto the element it started from. The ring
+    // is still what a text field wears without DOM focus, so it has to be the
+    // fallback, but it cannot be the first answer.
+    var active = document.activeElement && document.activeElement.__nmSpatialId;
+    var ringed = active && present[active] ? active : '';
+    if (!ringed && focusedByUs && present[focusedByUs]) ringed = focusedByUs;
+
     return {
-      elements: dropDuplicateLabels(results, elements),
+      elements: collected,
       modal: !!modal,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
@@ -309,9 +352,7 @@
       scrollHeight: Math.round(document.documentElement.scrollHeight),
       scrollX: Math.round(window.scrollX),
       scrollWidth: Math.round(document.documentElement.scrollWidth),
-      focused: document.activeElement && document.activeElement.__nmSpatialId
-        ? document.activeElement.__nmSpatialId
-        : ''
+      focused: ringed
     };
   }
 
@@ -341,6 +382,47 @@
     }
   }
 
+  /**
+   * Controls the browser drives with a native sheet rather than in the page.
+   *
+   * A text control with DOM focus raises the system keyboard, and the leanback
+   * IME then consumes every directional key -- measured on the 8000 as six
+   * presses that moved nothing on the first field of a form.
+   *
+   * `select` is here for consistency rather than from a measurement: it is
+   * opened in the native list sheet on OK, so DOM focus on it buys nothing
+   * and a focused select is documented to consume UP and DOWN for its own
+   * value. A column sweep still stops at the first select on the test page
+   * with this in place, so that stop has another cause and is still open.
+   *
+   * None of them need DOM focus from us. The ring is ours, and OK opens the
+   * native overlay, which is the only moment either should take over.
+   *
+   * A label is included because focusing one delegates into the control it
+   * names, which is how a caption three fields up raised a keyboard for an
+   * input nobody had reached yet.
+   */
+  function raisesKeyboard(element) {
+    var tag = element.tagName.toLowerCase();
+    if (tag === 'textarea' || tag === 'select') return true;
+    if (element.isContentEditable) return true;
+    if (tag === 'label') {
+      var control = element.control ||
+        (element.getAttribute('for') ? document.getElementById(element.getAttribute('for')) : null);
+      return !!control && raisesKeyboard(control);
+    }
+    if (tag !== 'input') return false;
+    return NON_TEXT_INPUT_TYPES.indexOf((element.type || 'text').toLowerCase()) === -1;
+  }
+
+  /** Everything an `input` can be that does not put a caret anywhere. Written
+   *  as the exceptions because the type list grows and the default for an
+   *  unknown type is text. */
+  var NON_TEXT_INPUT_TYPES = [
+    'button', 'checkbox', 'color', 'file', 'hidden', 'image',
+    'radio', 'range', 'reset', 'submit'
+  ];
+
   function focusById(id) {
     var element = find(id);
     if (!element) return false;
@@ -350,13 +432,38 @@
     element.classList.add(RING_CLASS);
     element.setAttribute(RING_ATTRIBUTE, '');
     focusedByUs = id;
-    // preventScroll, because the Kotlin side has already decided whether a
-    // screenful of scrolling is wanted and the browser's own scroll-into-view
-    // would fight that decision.
-    try {
-      element.focus({ preventScroll: true });
-    } catch (error) {
-      element.focus();
+
+    /**
+     * Arriving at a text field must not give it DOM focus.
+     *
+     * WebView raises the system keyboard the moment a text control is focused,
+     * and the leanback IME consumes every directional key while it is up. So
+     * walking onto the first field of a form ended the walk: the ring sat on it
+     * and every subsequent press went into a keyboard nobody asked for. Measured
+     * on the 8000 against a page carrying one of every input type — six presses,
+     * no movement, which is a dead remote.
+     *
+     * The ring is ours and needs no DOM focus to be drawn. Editing is the
+     * native overlay's job and it opens on OK, which is the only moment a
+     * keyboard should ever appear.
+     *
+     * A label is included because focusing one delegates to the control it
+     * names, which is how a label three fields up raised the keyboard for an
+     * input the viewer had not reached yet.
+     */
+    if (!raisesKeyboard(element)) {
+      // preventScroll, because the Kotlin side has already decided whether a
+      // screenful of scrolling is wanted and the browser's own scroll-into-view
+      // would fight that decision.
+      try {
+        element.focus({ preventScroll: true });
+      } catch (error) {
+        element.focus();
+      }
+    } else if (document.activeElement && document.activeElement !== document.body) {
+      // And take focus off whatever had it, or the previous field keeps the
+      // caret and the keyboard stays up behind the ring.
+      try { document.activeElement.blur(); } catch (error) { /* not blurrable */ }
     }
 
     // Except when the element is not fully on screen. Focus was landing on

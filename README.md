@@ -20,7 +20,7 @@ In development, and usable as a daily browser on a television.
 
 What works today: spatial navigation through page content with a focus ring drawn by us, and an accelerating pointer for pages that cannot be walked by focus, with the browser choosing between them and a long press on OK overruling it; tabs that survive memory pressure and rebuild themselves when the system kills a renderer; fullscreen video with a real media session, audio focus and background audio; a native overlay for filling in web forms, including dropdowns a D-pad can operate; tracker blocking from the public filter lists, fetched from their publishers and never through us; a home screen of favorites and most visited; address suggestions; voice input from the remote's microphone; find in page; per-site permissions; downloads and a file chooser; a desktop-or-TV switch remembered per site; links handed over from other apps; and a browser that stands down entirely when a screen reader is running, so one focus system drives the whole interface.
 
-Still ahead: the Play submission itself.
+Still ahead: the Play submission itself, which needs a console entry and a service account key.
 
 Features land slice by slice, and each slice is accepted only when everything it added can be reached using six keycodes and nothing else. The design note for each one is in [docs/design](docs/design/).
 
@@ -47,6 +47,21 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 The app ships no native code of its own. One artifact runs on every processor Android TV uses, so there are no ABI splits to pick between.
+
+Released builds are attached to the [GitHub releases](../../releases) as a signed
+AAB for Play and a signed APK for sideloading, with a `SHA256SUMS.txt` beside
+them so a download can be checked rather than trusted.
+
+### Driving it on a television
+
+```
+node tools/spatial-drive.mjs <serial> <url>
+```
+
+Presses real remote keys at a real device and reports where focus went, against
+a debug page carrying every input type a site can use. It is the ruler that
+catches what the geometry fixtures cannot, and the reasoning is in
+[docs/design/spatial-navigation-on-hardware.md](docs/design/spatial-navigation-on-hardware.md).
 
 ## What it cannot do
 
