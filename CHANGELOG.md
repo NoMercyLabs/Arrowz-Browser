@@ -6,6 +6,14 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-08-17
+
+First release. Every function is reachable with four arrows, OK and BACK,
+and each of the sixteen slices was accepted only when that was true on a
+real television.
+
 ### Added
 
 - Project scaffold: Gradle 9.2.1, AGP 9.0.1, Kotlin 2.3.20, Compose, `minSdk` 28, `targetSdk` 36.
