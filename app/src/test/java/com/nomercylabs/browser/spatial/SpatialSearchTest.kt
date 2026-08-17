@@ -309,6 +309,64 @@ class SpatialSearchTest {
         assertTrue(result is SpatialResult.ScrollThenRetry)
     }
 
+    /**
+     * What is on the viewer's screen is ranked before what is not.
+     *
+     * The beam is right about direction and says nothing about whether the
+     * winner can be seen, so a candidate a few pixels past the fold could beat
+     * a card filling the screen and turn one press into a scroll that went
+     * straight past it. The screen somebody is looking at is the thing they are
+     * navigating; scrolling is what happens when it runs out.
+     */
+    @Test
+    fun aCandidateOnScreenIsPreferredToOneJustPastTheFoldThatWouldBeatItOnTheBeam() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = Rect(400, 20, 600, 60),
+            candidates = listOf(
+                Focusable("aCardFillingTheScreen", Rect(50, 100, 250, 548), 1),
+                Focusable("justPastTheFold", Rect(400, 509, 600, 549), 2),
+            ),
+            viewport = Rect(0, 0, 960, 540),
+        )
+        assertEquals("aCardFillingTheScreen", move(result))
+    }
+
+    /**
+     * The scroll is measured against the candidate it is going to, not against
+     * the height of the screen.
+     *
+     * A blind screenful is what makes a television browser feel like it throws
+     * the page around: one press past the last visible link moved the article a
+     * whole screen, and everything between the fold and the next candidate went
+     * by unread.
+     */
+    @Test
+    fun theScrollIsOnlyAsFarAsItTakesToRevealTheNextCandidate() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = Rect(0, 400, 200, 440),
+            candidates = listOf(at("justBelowTheFold", left = 0, top = 700, order = 1)),
+            viewport = Rect(0, 0, 960, 540),
+        )
+        // Its bottom edge, plus the margin that keeps it off the edge of the
+        // screen -- a quarter of the page rather than all of it.
+        assertEquals(224, (result as SpatialResult.ScrollThenRetry).dy)
+    }
+
+    /** And never more than a screenful, however far away the candidate is, or
+     *  the page teleports and the viewer loses their place entirely. */
+    @Test
+    fun revealingSomethingVeryFarAwayStillMovesAtMostAScreenful() {
+        val result = SpatialSearch.search(
+            direction = RemoteKey.Down,
+            source = Rect(0, 400, 200, 440),
+            candidates = listOf(at("milesBelow", left = 0, top = 9000, order = 1)),
+            viewport = Rect(0, 0, 960, 540),
+        )
+        assertEquals(476, (result as SpatialResult.ScrollThenRetry).dy)
+    }
+
     @Test
     fun upIsTheMirrorOfDown() {
         val result = SpatialSearch.search(

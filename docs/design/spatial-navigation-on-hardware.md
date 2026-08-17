@@ -102,34 +102,111 @@ field's own focus handling, which asks for focus back when editing ends.
 This is the highest-value thing outstanding in the browser: a form can be typed
 into and not submitted.
 
-## Real sites, which is where it still gets stuck
+## Real sites, and the six things that were stopping them
 
 Everything above was measured against one page written for the purpose. Driven
-against the open web on the 8000, with the same harness, it stops early:
+against the open web the same harness stopped after three header links on a
+Wikipedia article, with the body of the article never reached.
 
-| Page | Focusables reported | Distinct reached | Presses | Dead presses |
-|---|---|---|---|---|
-| en.wikipedia.org article | 31 | 8 | 18 | 3 |
-| example.org | 1 | 8 | 29 | 6 |
-| duckduckgo.com results | 0 | 5 | 11 | 4 |
+The obvious suspect was the beam group — a sticky header and the body under it
+are deliberately separate, and starting inside the header that rule would be a
+trap. It was not the cause: that page reports **zero** fixed elements, so both
+were in one group already. There were six separate causes, and none of them was
+the search's geometry.
 
-A dead press is one that changed nothing, and it is the thing the whole input
-model exists to prevent, on a page of any size. A ratio against the focusable
-count is not the measure here: the number moves as a page settles, and one
-reading of the Wikipedia article said 1,668 while a later one said 31.
+**A sentinel used as a map key.** Everything outside a row, grid or list reports
+the section name `document`, which is the absence of a section rather than the
+name of one. Section memory took it as a section, so the whole body of a page
+became one row with one remembered child: leaving the header nav resolved
+straight back to the first link on the page, and the next press went back into
+the header. Three links and a wall, from a sentinel standing in a map it was
+never meant to be a key in.
 
-On the Wikipedia article the column walk covers three header links and then
-stops, with the body of the article — where the links actually are — never
-reached. The obvious suspect was the beam group: a sticky header and the body
-under it are deliberately separate, and starting inside the header that rule is
-a trap. It is not the cause. The page reports **zero** fixed elements, so both
-are in the same group already, and a change letting the search fall through to
-the other group made no difference and was reverted rather than shipped
-unproven.
+**The mode probe re-entering a page somebody was already reading.** The probe
+asks a page what shape it is for three seconds after it loads, and settling on
+focus mode applied focus mode — including when focus mode was already running.
+Entering a page is now only entering it when nothing of ours is standing
+anywhere on it.
 
-The DuckDuckGo results page reporting zero focusables is its own thread and
-probably a timing one — the same page has reported 94 in earlier sessions.
+**A load event read as a navigation.** `onPageFinished` was announcing a
+committed navigation, so every deferred subresource cleared the spatial state
+mid-read and recorded the visit in history a second time. What a page does is
+now three signals rather than one: a document starting, a routed navigation, and
+a page reporting on itself. Only the first two reset anything — and a routed
+navigation reset nothing at all before, so a single-page app kept the previous
+page's focus positions and filtering origin for as long as it was open.
 
-So the honest state: navigation is good on a form-shaped page and stalls after a
-handful of elements on a real article. That is the next thing to fix, and it is
-bigger than the three defects above it in this file.
+**A retry on a timer instead of on the page.** `scrollBy` reaches the page some
+frames after it is asked for, and the retry waited two of them. That is plenty
+on a form and nowhere near enough on an article, so the second look read the
+position from before the scroll. It now waits for the page to report the scroll
+it was asked for, polling one number rather than re-walking the document.
+
+**A scroll of a whole screenful.** One press past the last visible link moved
+the page an entire screen, and everything between the fold and the next
+candidate went by unread. The scroll is now measured against the candidate it is
+going to and capped at a screenful, and the retry runs up to six times so a gap
+wider than the screen does not dead-end. On the article the page now travels 69,
+41, 36, 59 and 39 pixels across successive presses.
+
+**Half a second per press.** One snapshot cost 500ms on that article: it walked
+all 1,668 focusables, computing a style per element and another per ancestor up
+every chain. It now rejects on geometry first, keeps only what is within a
+screen of the viewport, caches the ancestor chain and keeps the elements it
+found for the lookup that follows. **59 candidates, 77ms.**
+
+## Pinned elements, which the article could not have shown
+
+Wikipedia reports zero fixed elements, so nothing above tested the group split
+at all. `developer.android.com` has a sticky header, a pinned cookie bar and
+content between them, and on that page focus began in the cookie bar and
+**fourteen presses moved nothing** while the page scrolled to its end
+underneath.
+
+A bar glued to the bottom of the screen has nothing below it, ever, however far
+the page scrolls. Two rules follow, and they are not symmetric:
+
+- **A page is entered at its content**, not at the first thing in document
+  order, which on a great many sites is a consent bar, a skip link or a pinned
+  toolbar.
+- **A scroll asked for from a pinned element is not an answer**, because
+  scrolling cannot change what a pinned group contains, so that press crosses
+  into the content and resumes from where the content walk left off. From the
+  content it is the opposite: a scroll *is* the answer, and crossing instead put
+  focus in the cookie bar on every second press the whole way down.
+
+So the content walks and scrolls among its own, and the pinned groups are
+reached where somebody would reach for them — the header by pressing up at the
+top, the bar by pressing down at the end. Both were then checked for the
+opposite failure, that a reachable thing is a trap: pressing up out of the
+cookie bar walks the bar and then returns to the article.
+
+## Sites where there is nothing to navigate
+
+BBC News and Stack Overflow report **zero** reachable focusables, or only the
+handful in a consent banner. Their consent dialog puts its controls in a
+third-party iframe, and an iframe's contents are not in this document, so
+nothing in the page can see them.
+
+This is not a navigation defect and it should not be fixed in the search. The
+mode probe counts what is reachable, finds nothing, and hands the page to the
+pointer — which is the right answer for a page whose only control is in a frame
+we cannot walk. It is written down here because "zero focusables" looks
+identical to a collector bug and is not one.
+
+## Where the harness was measuring itself
+
+Two of its own faults were found while the browser's were being fixed.
+
+It slept a fixed 1000ms after each press and called anything that had not moved
+a dead press. Answering one press costs a snapshot, and on a long article that
+is longer than the sleep, so working presses were counted dead. It now waits for
+focus to move and only calls a press dead when it has not moved by the deadline
+— which is both honest and faster.
+
+And its raster is quadratic: reaching row *n* costs a reload and *n* presses.
+That was invisible while the column died after three elements, and the moment
+the column ran a whole article the sweep stopped finishing at all. Rows are now
+sampled across the column, and the sample size is reported beside the coverage
+number, because a coverage figure that quietly skipped most of a page reads
+exactly like a page that was fully covered.

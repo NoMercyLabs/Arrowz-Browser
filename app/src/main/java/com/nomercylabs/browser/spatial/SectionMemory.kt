@@ -21,7 +21,7 @@ class SectionMemory {
     private val lastFocused = mutableMapOf<String, String>()
 
     fun remember(section: String, id: String) {
-        if (section.isEmpty()) return
+        if (section.isEmpty() || section == NO_SECTION) return
         lastFocused[section] = id
     }
 
@@ -37,6 +37,7 @@ class SectionMemory {
         available: List<PageFocusable>,
     ): String {
         if (winner.section == fromSection) return winner.focusable.id
+        if (winner.section == NO_SECTION) return winner.focusable.id
 
         val remembered: String = lastFocused[winner.section] ?: return winner.focusable.id
         val stillPresent: Boolean = available.any { element -> element.focusable.id == remembered }
@@ -44,4 +45,21 @@ class SectionMemory {
     }
 
     fun forget() = lastFocused.clear()
+
+    private companion object {
+        /**
+         * What the page reports for an element in no row, grid or list at all —
+         * the absence of a section rather than the name of one.
+         *
+         * Treating it as a section is what stopped the walk on every article on
+         * the web. Everything outside a container shares this one name, so the
+         * whole body of a page becomes a single row with a single remembered
+         * child: measured on a Wikipedia article, DOWN out of the header nav
+         * resolved to the first link on the page, the next press went back into
+         * the header, and the article itself was unreachable in either
+         * direction. Three header links and then nothing, from one sentinel
+         * standing in a map it was never meant to be a key in.
+         */
+        const val NO_SECTION: String = "document"
+    }
 }

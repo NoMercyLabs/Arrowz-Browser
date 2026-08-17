@@ -69,6 +69,31 @@ class SectionMemoryTest {
         )
     }
 
+    /**
+     * The article fixture: everything outside a row, grid or list reports the
+     * same sentinel, so treating it as a section makes the whole body of a page
+     * one row with one remembered child.
+     *
+     * Measured on a Wikipedia article before this: entering the header nav
+     * remembered nothing, but the first link on the page had already been
+     * remembered for the body, so DOWN out of the header resolved back to the
+     * top of the document and the article was unreachable in either direction.
+     */
+    @Test
+    fun theBodyOfAPageIsNotASectionAndRemembersNoChild() {
+        val memory = SectionMemory()
+        memory.remember("document", "firstLinkOnThePage")
+
+        val body = listOf(
+            element("firstLinkOnThePage", "document", 1),
+            element("linkInTheArticle", "document", 40),
+        )
+        assertEquals(
+            "linkInTheArticle",
+            memory.resolve("headerNav", element("linkInTheArticle", "document", 40), body),
+        )
+    }
+
     @Test
     fun aNewPageForgetsEverySection() {
         val memory = SectionMemory()

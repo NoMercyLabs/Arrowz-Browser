@@ -18,8 +18,33 @@ import androidx.webkit.WebViewAssetLoader
 
 data class PageError(val code: Int, val description: String, val url: String)
 
+/**
+ * What the page just did, because "the URL changed" is three different events
+ * wearing one name.
+ *
+ * They were one signal, and everything that resets per document ran on every
+ * load event a page produced. Measured on a Wikipedia article: the spatial
+ * state was cleared several seconds into reading it, when a deferred
+ * subresource finished, and focus jumped from mid-article back to the first
+ * link on the page — with the visit recorded in history twice for good measure.
+ */
+enum class PageEvent {
+    /** A document began loading. Exactly one per load, including a reload, where
+     *  the address legitimately repeats and the document really is new. */
+    DocumentStarted,
+
+    /** A single-page app routed without any of the page lifecycle firing.
+     *  Follows an ordinary load with the same address, so the host drops the
+     *  repeat and keeps the genuine route changes. */
+    RouteChanged,
+
+    /** The same document reporting on itself. Keeps the address bar honest and
+     *  resets nothing. */
+    Progressed,
+}
+
 class NmWebViewClient(
-    private val onPageStateChanged: (url: String, canGoBack: Boolean) -> Unit,
+    private val onPageStateChanged: (url: String, canGoBack: Boolean, event: PageEvent) -> Unit,
     private val onError: (PageError) -> Unit,
     private val onRendererGone: () -> Unit,
     private val onInjectAtDocumentStart: (WebView) -> Unit = {},
@@ -48,11 +73,22 @@ class NmWebViewClient(
         // Re-injected on every navigation rather than once per WebView, so a
         // single-page app that swaps its document does not lose the shim.
         onInjectAtDocumentStart(view)
-        onPageStateChanged(url, view.canGoBack())
+        onPageStateChanged(url, view.canGoBack(), PageEvent.DocumentStarted)
     }
 
     override fun onPageFinished(view: WebView, url: String) {
-        onPageStateChanged(url, view.canGoBack())
+        onPageStateChanged(url, view.canGoBack(), PageEvent.Progressed)
+    }
+
+    /**
+     * How a single-page app says it navigated.
+     *
+     * `pushState` swaps the document's content without any of the page
+     * lifecycle firing, so a site that routes in JavaScript kept the previous
+     * page's focus positions, its section memory and its filtering origin.
+     */
+    override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
+        onPageStateChanged(url, view.canGoBack(), PageEvent.RouteChanged)
     }
 
     /**

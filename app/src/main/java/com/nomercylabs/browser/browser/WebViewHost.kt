@@ -100,6 +100,11 @@ class WebViewHost(initialView: WebView) : TabPage {
     /** Where to return to when the saved state carries no usable history. */
     private var lastUrl: String = ""
 
+    /** The address the navigation listener was last told about, which is not the
+     *  same as the address the view is on: a routed navigation reports one that
+     *  an ordinary load has already reported. */
+    private var lastAnnouncedUrl: String = ""
+
     private var rebuild: ((Bundle, String) -> WebView)? = null
     private var rendererDeathListener: (() -> Unit)? = null
     private var navigationListener: ((String) -> Unit)? = null
@@ -130,12 +135,24 @@ class WebViewHost(initialView: WebView) : TabPage {
         WebSettingsFactory.apply(target, userAgent, isDarkTheme, textZoomPercent)
 
         target.webViewClient = NmWebViewClient(
-            onPageStateChanged = { url, canGoBack ->
+            onPageStateChanged = { url, canGoBack, event ->
                 state.url = url
                 state.canGoBack = canGoBack
                 state.error = null
                 lastUrl = url
-                navigationListener?.invoke(url)
+                // A routed navigation announces the address an ordinary load has
+                // already announced, so the address is what separates a real
+                // route change from that echo. A load, including a reload, is a
+                // new document whether or not the address repeats.
+                val isNewDocument: Boolean = when (event) {
+                    PageEvent.DocumentStarted -> true
+                    PageEvent.RouteChanged -> url != lastAnnouncedUrl
+                    PageEvent.Progressed -> false
+                }
+                if (isNewDocument) {
+                    lastAnnouncedUrl = url
+                    navigationListener?.invoke(url)
+                }
                 captureState()
                 refreshScrollPosition()
             },

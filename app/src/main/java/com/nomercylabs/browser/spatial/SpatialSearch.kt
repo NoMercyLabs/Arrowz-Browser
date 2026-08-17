@@ -58,34 +58,41 @@ object SpatialSearch {
     ): SpatialResult {
         val inDirection: List<Focusable> = candidates
             .filter { candidate -> isBeyond(direction, source, candidate.rect) }
-            // With nowhere to scroll, an off-screen candidate can never be
-            // brought into view, so moving to it puts focus somewhere nobody can
-            // see. Measured on DuckDuckGo on the 8010, where a closed off-canvas
-            // drawer sat past the right edge of an unscrollable page: RIGHT from
-            // the header landed inside it and the remote appeared to stop
-            // working. Dropped rather than refused outright, so the next best
-            // candidate still gets the press.
-            .filter { candidate -> canScroll || !isOffscreen(candidate.rect, viewport) }
 
         if (inDirection.isEmpty()) {
             return if (canScroll) scrollFor(direction, viewport) else SpatialResult.LeavePage
         }
 
-        val winner: Focusable = inDirection.reduce { best, next ->
+        /**
+         * What is on screen is ranked first, and separately.
+         *
+         * Ranking everything together let a candidate far below the fold win on
+         * the beam and turned an ordinary press into a screenful of scrolling
+         * that skipped every link in between. The viewer's own screen is the
+         * thing they are navigating, so a press moves within it while it can,
+         * and scrolling is what happens when it cannot.
+         *
+         * This also retires the old "drop off-screen candidates when the page
+         * cannot scroll" filter. With nowhere to scroll, an off-screen candidate
+         * can never be brought into view — a closed off-canvas drawer past the
+         * right edge, measured on DuckDuckGo on the 8010 — and now falls out of
+         * the same rule rather than a second one.
+         */
+        val onScreen: List<Focusable> = inDirection
+            .filter { candidate -> !isOffscreen(candidate.rect, viewport) }
+        if (onScreen.isNotEmpty()) return SpatialResult.Move(best(direction, source, onScreen).id)
+
+        if (!canScroll) return SpatialResult.LeavePage
+        return revealScroll(direction, best(direction, source, inDirection).rect, viewport)
+    }
+
+    private fun best(direction: RemoteKey, source: Rect, candidates: List<Focusable>): Focusable =
+        candidates.reduce { best, next ->
             if (isBetter(direction, source, next.rect, best.rect)) next
             else if (isBetter(direction, source, best.rect, next.rect)) best
             else if (next.documentOrder < best.documentOrder) next
             else best
         }
-
-        // Scroll before jumping. Focus disappearing off screen is the single
-        // worst thing a television browser does, and it is what a search that
-        // only ranks geometry will happily produce.
-        if (canScroll && isOffscreen(winner.rect, viewport)) {
-            return scrollFor(direction, viewport)
-        }
-        return SpatialResult.Move(winner.id)
-    }
 
     /**
      * Strictly beyond, on both edges. A candidate that merely overlaps the
@@ -199,8 +206,53 @@ object SpatialSearch {
             rect.right > viewport.right + OFFSCREEN_TOLERANCE ||
             rect.left < viewport.left - OFFSCREEN_TOLERANCE
 
+    /**
+     * Scrolls exactly far enough to bring [target] inside the viewport, never
+     * further than a screenful.
+     *
+     * The blind screenful this replaces is what makes a television browser feel
+     * like it is throwing the page around: one press past the last visible link
+     * moved the article a whole screen, so everything between the fold and the
+     * next candidate went by unread and unreachable. Moving by what the next
+     * candidate needs means the page travels the least that makes the press
+     * mean something, which is what scrolling is for.
+     *
+     * Always at least one pixel. A candidate that is off screen on the other
+     * axis produces no travel on this one, and returning a scroll of zero would
+     * leave the retry reading the same geometry forever.
+     */
+    private fun revealScroll(direction: RemoteKey, target: Rect, viewport: Rect): SpatialResult {
+        val vertical: Int = (viewport.height - SCROLL_OVERLAP).coerceAtLeast(1)
+        val horizontal: Int = (viewport.width - SCROLL_OVERLAP).coerceAtLeast(1)
+        return when (direction) {
+            RemoteKey.Down ->
+                SpatialResult.ScrollThenRetry(
+                    0,
+                    (target.bottom - viewport.bottom + REVEAL_MARGIN).coerceIn(1, vertical),
+                )
+            RemoteKey.Up ->
+                SpatialResult.ScrollThenRetry(
+                    0,
+                    -(viewport.top - target.top + REVEAL_MARGIN).coerceIn(1, vertical),
+                )
+            RemoteKey.Right ->
+                SpatialResult.ScrollThenRetry(
+                    (target.right - viewport.right + REVEAL_MARGIN).coerceIn(1, horizontal),
+                    0,
+                )
+            RemoteKey.Left ->
+                SpatialResult.ScrollThenRetry(
+                    -(viewport.left - target.left + REVEAL_MARGIN).coerceIn(1, horizontal),
+                    0,
+                )
+            else -> SpatialResult.LeavePage
+        }
+    }
+
     /** A screenful less an overlap, so the line that was at the edge is still
-     *  readable after the scroll and the viewer keeps their place. */
+     *  readable after the scroll and the viewer keeps their place. Used only
+     *  when the direction holds no candidate at all, so there is nothing to
+     *  measure a smaller move against. */
     private fun scrollFor(direction: RemoteKey, viewport: Rect): SpatialResult {
         val vertical: Int = viewport.height - SCROLL_OVERLAP
         val horizontal: Int = viewport.width - SCROLL_OVERLAP
@@ -216,4 +268,8 @@ object SpatialSearch {
     private const val MAJOR_WEIGHT: Long = 13
     private const val OFFSCREEN_TOLERANCE: Int = 8
     private const val SCROLL_OVERLAP: Int = 64
+
+    /** Landing flush against the edge of the screen reads as half cut off on a
+     *  television, so a revealed candidate is brought a little further in. */
+    private const val REVEAL_MARGIN: Int = 24
 }

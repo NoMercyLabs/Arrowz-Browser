@@ -121,13 +121,12 @@
    * scroll to. Below the fold is reachable and stays; outside the document
    * entirely is not.
    */
-  function isVisible(element, fixed) {
+  function isVisible(element, fixed, box) {
     var style = window.getComputedStyle(element);
     if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') return false;
     if (element.disabled) return false;
     if (element.getAttribute('aria-hidden') === 'true') return false;
 
-    var box = element.getBoundingClientRect();
     if (box.width < MIN_SIZE || box.height < MIN_SIZE) return false;
 
     if (fixed) {
@@ -163,11 +162,28 @@
     return container.__nmSectionId;
   }
 
-  function isFixed(element) {
+  /**
+   * Whether anything above this element pins it to the viewport.
+   *
+   * The ancestor chain is shared by everything in a subtree, so the answer for
+   * one paragraph's link is the answer for every link in that paragraph. Asked
+   * without the cache, an article of sixteen hundred controls costs a computed
+   * style per ancestor per control — measured at half a second per snapshot on
+   * the 8000, which is half a second per press.
+   *
+   * The cache lives for one snapshot. Positions change, and an answer kept
+   * across presses would outlive the layout it describes.
+   */
+  function isFixed(element, cache) {
+    var chain = [];
+    var answer = false;
     for (var node = element; node && node !== document.body; node = node.parentElement) {
-      if (window.getComputedStyle(node).position === 'fixed') return true;
+      if (cache.has(node)) { answer = cache.get(node); break; }
+      chain.push(node);
+      if (window.getComputedStyle(node).position === 'fixed') { answer = true; break; }
     }
-    return false;
+    for (var index = 0; index < chain.length; index++) cache.set(chain[index], answer);
+    return answer;
   }
 
   /**
@@ -281,6 +297,28 @@
     var elements = focusableElements();
     var results = [];
     var order = 0;
+
+    /*
+     * Only what is near enough to matter is measured.
+     *
+     * An article reports sixteen hundred focusables and the search can reach at
+     * most the handful around the viewer: it moves within the screen while it
+     * can, and scrolls by at most a screenful otherwise. Everything past that
+     * band costs a computed style and a section lookup to be ranked last.
+     * Measured on the 8000: half a second per snapshot, which is half a second
+     * per press, on the pages people actually read.
+     *
+     * A screen of slack in each direction, so the next press after a scroll has
+     * its candidates already in hand. When the band holds nothing in the
+     * direction of travel the caller scrolls a screenful blind, which is the
+     * behaviour it already had for a page with no candidates at all.
+     */
+    var bandTop = -window.innerHeight;
+    var bandBottom = window.innerHeight * 2;
+    var bandLeft = -window.innerWidth;
+    var bandRight = window.innerWidth * 2;
+    var fixedCache = new Map();
+
     for (var index = 0; index < elements.length; index++) {
       var element = elements[index];
       order++;
@@ -293,12 +331,19 @@
       // with the dialog still on screen and no way back into it.
       if (modal && !modal.contains(element)) continue;
 
-      var fixed = isFixed(element);
-      if (!isVisible(element, fixed)) continue;
+      // Geometry first, because it is the cheap question. A rectangle needs no
+      // computed style, no ancestor walk and no section lookup, and it rejects
+      // most of a long page on its own.
+      var box = element.getBoundingClientRect();
+      if (box.width < MIN_SIZE || box.height < MIN_SIZE) continue;
+      if (box.bottom < bandTop || box.top > bandBottom) continue;
+      if (box.right < bandLeft || box.left > bandRight) continue;
+
+      var fixed = isFixed(element, fixedCache);
+      if (!isVisible(element, fixed, box)) continue;
       if (!element.__nmSpatialId) {
         element.__nmSpatialId = 'nm' + (++identity);
       }
-      var box = element.getBoundingClientRect();
       results.push({
         elementIndex: index,
         id: element.__nmSpatialId,
@@ -314,6 +359,11 @@
       });
     }
     var collected = dropDuplicateLabels(results, elements);
+
+    lastCollected.clear();
+    for (var cacheIndex = 0; cacheIndex < collected.length; cacheIndex++) {
+      lastCollected.set(collected[cacheIndex].id, elements[collected[cacheIndex].elementIndex]);
+    }
 
     /**
      * The source has to be an element the search will also see.
@@ -356,8 +406,25 @@
     };
   }
 
+  /**
+   * What the last snapshot found, so looking an element up again does not walk
+   * the document a second time.
+   *
+   * Every press does a snapshot and then at least one lookup, and on a long
+   * article the lookup was as expensive as the snapshot. Held only until the
+   * next snapshot, and each entry is checked for still being in the document
+   * before it is trusted.
+   */
+  var lastCollected = new Map();
+
   function find(id) {
-    var elements = document.querySelectorAll(FOCUSABLE);
+    var cached = lastCollected.get(id);
+    if (cached && cached.isConnected !== false) return cached;
+
+    // The full walk stays as the fallback, and goes through the same guarded
+    // selector as everything else: `:has()` is newer than this app's minimum
+    // Android version, and an unsupported selector throws for the whole string.
+    var elements = focusableElements();
     for (var index = 0; index < elements.length; index++) {
       if (elements[index].__nmSpatialId === id) return elements[index];
     }

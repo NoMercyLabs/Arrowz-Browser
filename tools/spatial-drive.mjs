@@ -37,6 +37,10 @@ function argValue(name) {
 const PACKAGE = 'com.nomercylabs.browser.debug';
 const KEYS = { up: 19, down: 20, left: 21, right: 22, ok: 23, back: 4 };
 
+/** How many rows of the column get swept sideways. Each one costs a reload and
+ *  a walk down to it, so an article's worth of stops cannot all be taken. */
+const ROW_SAMPLE_LIMIT = 8;
+
 /** stderr is discarded rather than inherited: `am start` writes a warning there
  *  on every reload, and those lines landed in the middle of the JSON this
  *  prints, so the report could not be parsed by the thing meant to read it. */
@@ -129,6 +133,28 @@ const FOCUSED = `(function () {
     || (element.tagName.toLowerCase() + (element.name ? '[' + element.name + ']' : '')
         + (element.textContent ? ':' + element.textContent.trim().slice(0, 18) : ''));
 })()`;
+
+/**
+ * Presses a direction and waits for focus to actually move.
+ *
+ * A fixed sleep measures the sleep. Answering one press costs a snapshot, and
+ * on a long article that is tens of milliseconds on a good box and a lot more
+ * on a weak one, so a wait short enough to be quick on a form reported a page
+ * of working presses as dead. Waiting on the answer instead is both faster and
+ * honest: a press that has moved is measured the moment it moves, and only a
+ * press that has not moved by the deadline is a dead one.
+ */
+async function pressAndSettle(socket, key, from, deadlineMs = 4000) {
+  press(key);
+  const started = Date.now();
+  let landed = from;
+  while (Date.now() - started < deadlineMs) {
+    sleep(150);
+    landed = await evaluateOn(socket, FOCUSED);
+    if (landed !== from) return landed;
+  }
+  return landed;
+}
 
 /** Reload, then make sure the ring is on the page before anything is measured.
  *  A sweep that begins in cursor mode measures the pointer, which is a
@@ -227,13 +253,8 @@ async function main() {
   column.push(head);
   visited.add(head);
   for (let step = 0; step < 40; step++) {
-    press('down');
     presses++;
-    // Long enough for a scroll to settle. At 420ms a press that scrolled
-    // the page read back as the element it started on, so the sweep ended
-    // four rows into a page of twelve and reported the rest unreachable.
-    sleep(1000);
-    const landed = await evaluateOn(socket, FOCUSED);
+    const landed = await pressAndSettle(socket, 'down', head);
     // Only a press that changes nothing ends the sweep. Stopping on a
     // revisit ends it at the first element the page brings back into view
     // after a scroll, which is four rows into a page of twelve.
@@ -244,16 +265,31 @@ async function main() {
     visited.add(landed);
   }
 
-  for (let rowIndex = 0; rowIndex < column.length; rowIndex++) {
-    await resetPage(socket);
-    for (let step = 0; step < rowIndex; step++) { press('down'); sleep(900); }
+  /**
+   * Rows are sampled across the column rather than taken from every stop.
+   *
+   * Reaching a row costs a reload and one press per stop above it, so a raster
+   * over the whole column is quadratic in its length. That was invisible while
+   * the column died after three elements on a real article; the moment it ran
+   * the full document the same sweep stopped finishing at all. Sampled, and the
+   * sample size is reported, because a coverage number that quietly skipped
+   * most of a page reads exactly like a page that was fully covered.
+   */
+  const rowStops = column
+    .map((_, index) => index)
+    .filter((index) => index % Math.max(1, Math.ceil(column.length / ROW_SAMPLE_LIMIT)) === 0);
 
-    const row = [await evaluateOn(socket, FOCUSED)];
+  for (const rowIndex of rowStops) {
+    await resetPage(socket);
+    let standing = await evaluateOn(socket, FOCUSED);
+    for (let step = 0; step < rowIndex; step++) {
+      standing = await pressAndSettle(socket, 'down', standing);
+    }
+
+    const row = [standing];
     for (let step = 0; step < 12; step++) {
-      press('right');
       presses++;
-      sleep(900);
-      const landed = await evaluateOn(socket, FOCUSED);
+      const landed = await pressAndSettle(socket, 'right', row[row.length - 1]);
       if (landed === row[row.length - 1]) dead++;
       if (row.includes(landed)) break;
       row.push(landed);
@@ -271,6 +307,8 @@ async function main() {
     distinctReached: visited.size,
     presses,
     deadPresses: dead,
+    columnStops: column.length,
+    rowsSwept: rowStops.length,
     reached: [...visited].sort(),
     deadEnds,
     legs,
