@@ -1,5 +1,78 @@
 # Arrowz Browser — brief for the store and launcher assets
 
+## Where the set stands
+
+Five of the six frames came back at exactly the declared size and are in the
+repository. One is still open, and it is the square one.
+
+| Asset | Status |
+|---|---|
+| `launcher-banner-640x360` | In, as `app/src/main/res/drawable-xhdpi/banner.png` |
+| `play-tv-banner-1280x720` | In, as `docs/store/tv-banner-1280x720.png` |
+| `play-feature-graphic-1024x500` | In, as `docs/store/feature-graphic-1024x500.png` |
+| `play-icon-512` | In as a placeholder, and needs redrawing with the one below |
+| `adaptive-icon-foreground-432` | Not usable yet — see below |
+| `screenshot-1920x1080` | Came back as key art rather than a screenshot |
+
+The wide artwork is right. The accent samples as `#FF0055` exactly, which is the
+value already in the app, so nothing in the palette had to move.
+
+The 1920×1080 is key art, not a screenshot, so it is kept as
+`docs/store/key-art-1920x1080.png`. Play wants frames of the app actually
+running for that slot, and those already exist in `docs/store/`. The key art is
+worth having anyway.
+
+### The square icon, which is one problem and not two
+
+`play-icon-512` and `adaptive-icon-foreground-432` are the same image at two
+sizes — comparing them pixel for pixel gives a mean difference of 0.8 out of
+255. So they need one fix between them, not two.
+
+That image is a crop of the wide composition, and the crop lands mid-wordmark,
+so the square assets show a lone "A" up in the top left with the petals cut off
+at the right and bottom edges. Two things follow.
+
+**The A does not survive the launcher mask.** Measured against the 66% safe
+circle: 31% of the glyph's pixels fall outside it, and its furthest corner
+reaches 179px from centre where the limit is 143. On any launcher drawing a
+circle, the top left of the A is sliced off.
+
+**The foreground layer is fully opaque**, alpha 255 across all 432×432. An
+adaptive foreground has to be transparent where the background should show,
+because the launcher composites the two layers and slides them against each
+other during the open animation. Opaque means the background layer never
+appears and the parallax reveals a hard edge.
+
+So the square mark wants composing square from the start rather than cropped
+out of the banner: the petal cluster centred, the wordmark either dropped or
+replaced by a single centred letterform, everything inside the circle, and the
+432 exported on transparency.
+
+### The tile is darker than the shelf it sits on
+
+The banner is installed and drawn correctly on a real television. Sitting in
+the Apps grid, though, it is the least separated tile on the screen. Mean
+luminance of each tile against the launcher's black background:
+
+| Tile | Luminance | Separation |
+|---|---|---|
+| Crunchyroll | 83.7 | +83.7 |
+| Twitch | 69.5 | +69.5 |
+| NoMercy TV | 23.5 | +23.5 |
+| **Arrowz** | **10.0** | **+10.0** |
+
+The launcher draws no border and no card behind a banner, so a tile this dark
+reads as a gap in the row rather than as an app. Even NoMercy TV, which is
+itself a dark tile, has better than twice the separation.
+
+The wordmark and the petals are fine. It is the ground that disappears: it
+samples at roughly `#160007`, which against black is nearly nothing. Lifting
+the ground, or carrying the accent further across the composition, would fix it
+without changing the design. Worth seeing on a screen across the room before
+deciding how far to push it.
+
+## The frames
+
 Six frames, in `docs/store/frames/`. Drag the SVGs into Figma and each arrives as a frame at exactly the right size, filled with the mark's darkest ground and carrying its safe area as a dashed guide in a group named so it is obvious the guide goes before export.
 
 Both the fill and the guide are there to be replaced. The fill exists because Figma sizes an imported frame to the bounds of its content rather than to the declared width and height, so a frame carrying only an inset guide imports at the size of that guide instead of the size it is supposed to be.
@@ -13,8 +86,6 @@ The current exports carry their own rounded card, and that is what is going wron
 The same applies to the television tile. It sits in a row where the system draws the shape, so a mark with its own radius reads as a card floating inside a card.
 
 So: fill the frame, square corners, and let the platform do the rounding. What we lose is control of the corner, which was never ours; what we gain is the mark reaching the edges on every device instead of shrinking away from them.
-
-## The frames
 
 | Frame | Size | Where it appears | Safe area |
 |---|---|---|---|
