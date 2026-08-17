@@ -100,6 +100,9 @@ fun MenuOverlay(
     /** Title and state, already read from the system downloader. The menu does
      *  no querying of its own. */
     downloads: List<Pair<String, String>>,
+    /** Which clearing rows have run, so a press that changes nothing visible
+     *  still says so. */
+    cleared: Set<String>,
     onClearHistory: () -> Unit,
     onClearCookies: () -> Unit,
     onClearIcons: () -> Unit,
@@ -392,26 +395,26 @@ fun MenuOverlay(
                     // close the menu, and these are genuinely different losses.
                     ListRow(
                         title = stringResource(R.string.menu_clear_history),
-                        subtitle = "",
+                        subtitle = if (cleared.contains("history")) stringResource(R.string.menu_cleared) else "",
                         selected = false,
                         onClick = onClearHistory,
                         requestInitialFocus = true,
                     )
                     ListRow(
                         title = stringResource(R.string.menu_clear_cookies),
-                        subtitle = "",
+                        subtitle = if (cleared.contains("cookies")) stringResource(R.string.menu_cleared) else "",
                         selected = false,
                         onClick = onClearCookies,
                     )
                     ListRow(
                         title = stringResource(R.string.menu_clear_icons),
-                        subtitle = "",
+                        subtitle = if (cleared.contains("icons")) stringResource(R.string.menu_cleared) else "",
                         selected = false,
                         onClick = onClearIcons,
                     )
                     ListRow(
                         title = stringResource(R.string.menu_clear_permissions),
-                        subtitle = "",
+                        subtitle = if (cleared.contains("permissions")) stringResource(R.string.menu_cleared) else "",
                         selected = false,
                         onClick = onClearPermissions,
                     )

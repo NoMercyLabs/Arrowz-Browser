@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
     private var chrome: ChromeSurface by mutableStateOf(ChromeSurface.None)
     private var menuSection: MenuSection by mutableStateOf(MenuSection.Root)
     private var sitePermissionList: List<SitePermission> by mutableStateOf(emptyList())
+    private var clearedKinds: Set<String> by mutableStateOf(emptySet())
     private var downloadList: List<Pair<String, String>> by mutableStateOf(emptyList())
     private var searchEngineId: String by mutableStateOf(UrlOrSearch.ENGINES.first().id)
 
@@ -395,7 +396,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onPickSuggestion = { suggestion -> navigate(suggestion.url) },
                     onVoice = { startVoiceInput() },
-                    onMenu = { menuSection = MenuSection.Root; showChrome(ChromeSurface.Menu) },
+                    onMenu = { menuSection = MenuSection.Root; clearedKinds = emptySet(); showChrome(ChromeSurface.Menu) },
                     inputModeIsFocus = when (inputMode) {
                         InputMode.ScreenReader -> null
                         InputMode.Focus -> true
@@ -446,10 +447,15 @@ class MainActivity : ComponentActivity() {
                     permissions = sitePermissionList,
                     onForgetPermission = { permission -> forgetSitePermission(permission) },
                     downloads = downloadList,
-                    onClearHistory = { clearHistory() },
-                    onClearCookies = { clearCookies() },
-                    onClearIcons = { clearSiteIcons() },
-                    onClearPermissions = { clearSitePermissions() },
+                    // Four rows that empty something and leave the screen
+                    // exactly as it was. Driven on the 8000, every one of them
+                    // reported no change, which from the sofa is a press that
+                    // did nothing.
+                    cleared = clearedKinds,
+                    onClearHistory = { clearHistory(); clearedKinds += "history" },
+                    onClearCookies = { clearCookies(); clearedKinds += "cookies" },
+                    onClearIcons = { clearSiteIcons(); clearedKinds += "icons" },
+                    onClearPermissions = { clearSitePermissions(); clearedKinds += "permissions" },
                     onMenuSection = { next ->
                         // Read on the way in. Both lists change while this
                         // screen is closed, so a cached copy is a stale one.
@@ -1890,6 +1896,7 @@ private fun BrowserScreen(
     permissions: List<SitePermission>,
     onForgetPermission: (SitePermission) -> Unit,
     downloads: List<Pair<String, String>>,
+    cleared: Set<String>,
     onClearHistory: () -> Unit,
     onClearCookies: () -> Unit,
     onClearIcons: () -> Unit,
@@ -2090,6 +2097,7 @@ private fun BrowserScreen(
                 permissions = permissions,
                 onForgetPermission = onForgetPermission,
                 downloads = downloads,
+                cleared = cleared,
                 onClearHistory = onClearHistory,
                 onClearCookies = onClearCookies,
                 onClearIcons = onClearIcons,
