@@ -1377,6 +1377,13 @@ class MainActivity : ComponentActivity() {
             readSeed = { readAsset("filters-seed.txt") },
         )
         filters.replaceRules(updater.load())
+
+        // Blocking turned off means no request is made, which is what the
+        // privacy policy says and therefore what the code has to do. Read from
+        // the store rather than from the state the UI holds, because this runs
+        // during startup and that state may not have arrived yet.
+        if (store.preference(FILTER_KEY) == FILTER_OFF) return@execute
+
         if (!updater.isDue()) return@execute
         if (updater.update()) filters.replaceRules(updater.load())
     }

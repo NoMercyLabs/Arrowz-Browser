@@ -1,7 +1,7 @@
 # Privacy policy
 
 **NoMercy Browser** for Android TV
-Published by NoMercy Labs. Last updated 16 August 2026.
+Published by NoMercy Labs. Last updated 17 August 2026.
 
 ## The short version
 
@@ -19,11 +19,13 @@ All of it is stored locally. None of it is transmitted anywhere by the app. Unin
 
 ## Network requests the app itself makes
 
-In the current build there are none at all. The app makes no request of its own to anywhere.
+There is exactly one, and it does not go to us.
 
-There will be one, and it will not go to us.
+**Tracker and ad filter lists.** About once a week the app downloads filter lists from their public upstream sources: the uBlock Origin uAssets repository at `raw.githubusercontent.com`, and the EasyList project at `easylist.to`. Those providers can see your device's IP address and the fact that a filter list was requested, the same as any other download from them. They receive nothing else, and nothing about the pages you visit.
 
-**Tracker and ad filter lists.** Once list-based blocking ships, the app downloads filter lists from their public upstream sources, currently the uBlock Origin uAssets repository and the EasyList project. Those providers can see your device's IP address and the fact that a filter list was requested, the same as any other download from them. They receive nothing else, and they receive nothing about the pages you visit. You can turn list updating off in settings, in which case the app uses the copy bundled with the version you installed and makes no requests at all.
+Those requests are made to the providers directly and are deliberately not routed through any NoMercy Labs server. A proxy would be able to see which televisions asked and when, which is exactly the kind of collection this browser is built to make impossible rather than merely promise not to do.
+
+A smaller list authored by us ships inside the app, so blocking works on the very first page you open rather than after the first successful download. Turning tracker blocking off in the menu also stops the downloads, and the app then makes no request of its own at all.
 
 ## Network requests caused by browsing
 

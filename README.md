@@ -4,7 +4,7 @@ A web browser for Android TV that is actually operable from a remote, plays medi
 
 Most TV browsers fail in the same two places. They fake a mouse badly, so navigating any page is a fight. And they treat video as whatever the system WebView does by default, which means no fullscreen, no now playing, no audio focus and no background audio. This project treats input and media as the product rather than as details.
 
-![The home screen, with the address bar and a grid of favorites](.github/assets/home.png)
+![The home screen, with the address bar and a grid of favorites](docs/store/screenshot-1-home.png)
 
 ## What it does
 
@@ -12,23 +12,30 @@ Every function is reachable from six keys: the four directions, OK, and BACK. Th
 
 Media works the way you expect from a browser on a phone. Video goes fullscreen, playback publishes a real media session so transport controls and headset buttons work, audio focus is respected so the browser does not talk over other apps, and audio keeps playing when you leave the app.
 
-Privacy is the default rather than a setting. There is no analytics code in the project and the build fails if a dependency brings any, WebView's Safe Browsing reporting is turned off, and the app never contacts a server belonging to us. Tracker blocking from public upstream filter lists is designed and not yet built; when it arrives the lists are fetched from their own sources rather than from anything of ours.
+Privacy is the default rather than a setting. There is no analytics code in the project and the build fails if a dependency brings any, WebView's Safe Browsing reporting is turned off, and the app never contacts a server belonging to us. Trackers are blocked out of the box using the public upstream filter lists, downloaded from their own publishers rather than through anything of ours, with a smaller list inside the app so the first page you open is already protected.
 
 ## Status
 
-In development, and usable. Browsing, tabs, media, the home screen and the whole address bar are built and running on Android TV hardware.
+In development, and usable as a daily browser on a television.
 
-What works today: an accelerating pointer driven by the D-pad with real taps and edge scrolling; tabs that survive memory pressure and rebuild themselves when the system kills a renderer; fullscreen video with a real media session, audio focus and background audio; a home screen of favorites and most visited; address suggestions drawn from what you have kept and visited; voice input from the remote's microphone; find in page; browsable kept-pages and history; per-site permissions for camera, microphone and location; downloads and a file chooser; and a desktop-or-TV switch remembered per site.
+What works today: spatial navigation through page content with a focus ring drawn by us, and an accelerating pointer for pages that cannot be walked by focus, with the browser choosing between them and a long press on OK overruling it; tabs that survive memory pressure and rebuild themselves when the system kills a renderer; fullscreen video with a real media session, audio focus and background audio; a native overlay for filling in web forms, including dropdowns a D-pad can operate; tracker blocking from the public filter lists, fetched from their publishers and never through us; a home screen of favorites and most visited; address suggestions; voice input from the remote's microphone; find in page; per-site permissions; downloads and a file chooser; a desktop-or-TV switch remembered per site; links handed over from other apps; and a browser that stands down entirely when a screen reader is running, so one focus system drives the whole interface.
 
-Still ahead: a native overlay for filling in web forms, screen-reader support, the tracker-blocking layer, spatial navigation inside page content, brand assets, and the Play release pipeline.
+Still ahead: the Play submission itself.
 
 Features land slice by slice, and each slice is accepted only when everything it added can be reached using six keycodes and nothing else. The design note for each one is in [docs/design](docs/design/).
 
 ## Screenshots
 
-One so far, above. The rest wait for two things: the features they would show are still being built, and a screenshot of a browser is mostly the site inside it, so they need a page worth putting on the page. Every shot is taken on real hardware rather than an emulator, since the whole point is how this behaves on a television.
+Every shot is taken on real hardware rather than an emulator, since the whole point is how this behaves on a television, and on an installation with no browsing history behind it.
 
-Planned, once there is something honest to show: a page in cursor mode with the pointer on a link, video fullscreen with the now-playing session, the tab list under memory pressure, and find in page with a live match count.
+| | |
+|---|---|
+| ![Home screen](docs/store/screenshot-1-home.png) | ![A page in focus mode](docs/store/screenshot-2-page.png) |
+| The home screen: favorites and most visited, reachable from the address bar with one press. | Focus mode on a real page. The ring is ours, drawn to the same token the native chrome uses, because a site's own focus style is frequently invisible at three metres or removed entirely. |
+
+![The menu](docs/store/screenshot-3-menu.png)
+
+The menu, opened by holding BACK. Every entry acts immediately; there is no second level, because a submenu on a television costs two presses to reach and two to leave.
 
 ## Building
 

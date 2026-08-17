@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Dutch. The second locale exists to prove the first one: a string that was
+    hardcoded somewhere in Kotlin stays English here no matter what the
+    television is set to, and that is visible in one screenshot rather than in a
+    code review.
+-->
+<resources>
+    <string name="nav_back">Terug</string>
+    <string name="nav_reload">Pagina herladen</string>
+    <string name="nav_home">Naar de startpagina</string>
+    <string name="nav_placeholder">Zoek of voer een adres in</string>
+    <string name="suggest_search">Zoeken naar %1$s</string>
+    <string name="suggest_open">Ga naar %1$s</string>
+    <string name="suggest_list_description">Suggesties</string>
+
+    <string name="find_placeholder">Zoeken op deze pagina</string>
+    <string name="find_previous">Vorige resultaat</string>
+    <string name="find_next">Volgende resultaat</string>
+    <string name="menu_find">Zoeken op pagina</string>
+
+    <string name="nav_voice">Spreek een adres of zoekopdracht in</string>
+    <string name="voice_unavailable">Deze tv heeft geen spraakherkenning</string>
+
+    <string name="menu_bookmarks">Bewaarde pagina\'s</string>
+    <string name="menu_history">Onlangs bezocht</string>
+    <string name="menu_history_clear">Alles wat bezocht is vergeten</string>
+    <string name="bookmarks_title">Bewaarde pagina\'s</string>
+    <string name="bookmarks_empty">Nog niets bewaard. De ster in de adresbalk bewaart een pagina.</string>
+    <string name="bookmarks_remove">Deze pagina niet meer bewaren</string>
+    <string name="history_title">Onlangs bezocht</string>
+    <string name="history_empty">Nog niets bezocht</string>
+
+    <string name="menu_desktop_site">Vraag om de desktopsite</string>
+    <string name="menu_tv_site">Vraag om de televisiesite</string>
+
+    <string name="permission_title">%1$s vraagt om</string>
+    <string name="permission_camera">de camera</string>
+    <string name="permission_microphone">de microfoon</string>
+    <string name="permission_location">waar deze televisie staat</string>
+    <string name="permission_block">Blokkeren en niet meer vragen</string>
+    <string name="permission_allow_once">Deze ene keer toestaan</string>
+    <string name="permission_allow_always">Toestaan en onthouden</string>
+
+    <string name="download_started">%1$s wordt gedownload</string>
+    <string name="nav_field_description">Adres- en zoekveld</string>
+    <string name="nav_tabs">Open tabbladen</string>
+    <string name="tabs_title">Tabbladen (%1$d)</string>
+    <string name="tabs_new">Nieuw tabblad</string>
+    <string name="tabs_close">Tabblad sluiten</string>
+    <string name="tabs_untitled">Naamloze pagina</string>
+    <string name="home_title">Favorieten en meest bezocht</string>
+    <string name="home_empty">Open een pagina en bewaar hem hier met de ster in de adresbalk</string>
+    <string name="nav_favourite_add">Deze pagina bewaren</string>
+    <string name="nav_favourite_remove">Deze pagina niet meer bewaren</string>
+    <string name="menu_title">Menu</string>
+    <string name="nav_menu">Menu en instellingen</string>
+    <string name="menu_home">Startscherm</string>
+    <string name="menu_theme">Weergave</string>
+    <string name="menu_theme_system">De tv volgen</string>
+    <string name="menu_theme_light">Licht</string>
+    <string name="menu_theme_dark">Donker</string>
+
+    <string name="form_field_generic">Typ hier</string>
+    <string name="form_done">Klaar</string>
+    <string name="form_voice">Spreek in dit veld</string>
+    <string name="form_required">Dit veld is verplicht</string>
+    <string name="form_invalid">Deze pagina zegt dat dat nog niet klopt</string>
+    <string name="form_no_options">Deze lijst is leeg</string>
+    <string name="form_dirty_reload">Herladen gooit weg wat je hebt getypt</string>
+
+    <string name="a11y_page_loaded">%1$s geladen</string>
+    <string name="a11y_page_failed">%1$s kon niet worden geladen</string>
+    <string name="a11y_tab_opened">Nieuw tabblad</string>
+    <string name="a11y_tab_switched">%1$s wordt getoond</string>
+
+    <string name="menu_stay_signed_in">Hier ingelogd blijven</string>
+    <string name="menu_stay_signed_in_on">Blijft bewaard als de browser sluit</string>
+    <string name="menu_stay_signed_in_off">Wordt uitgelogd als de browser sluit</string>
+
+    <string name="menu_privacy">Trackers blokkeren</string>
+    <string name="menu_privacy_on">Aan</string>
+    <string name="menu_privacy_off">Uit, dus deze pagina laadt alles</string>
+    <plurals name="menu_privacy_blocked">
+        <item quantity="one">Aan, %1$d geblokkeerd op deze pagina</item>
+        <item quantity="other">Aan, %1$d geblokkeerd op deze pagina</item>
+    </plurals>
+
+    <string name="a11y_role_tab">Tabblad</string>
+    <string name="a11y_selected">Wordt nu getoond</string>
+</resources>
